@@ -1,0 +1,58 @@
+# The dependabot replacement: bump, test, and open one pull request a week.
+#
+# Dependabot opens a PR per package and none of them know whether the app still
+# builds. This does the bumps in one branch, runs your own checks, and writes
+# down what it found — including anything it decided not to bump and why.
+#
+# Change the commands. They are the whole point; the model is just the thing
+# that reads the output and decides.
+
+name: fx weekly deps
+
+on:
+  schedule:
+    - cron: '0 19 * * 0'   # Sunday, 06:00 Sydney
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - uses: khalido/fx-agent-action@v1
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+        with:
+          model: anthropic/claude-sonnet-5
+          mode: write
+          post: none          # no issue to comment on; it opens a PR
+          max_steps: '80'
+          prompt: |
+            Bump this project's dependencies and prove it still works.
+
+            1. `npm outdated` — take the minor and patch bumps. A major is a
+               separate decision: leave it, and say in your note which majors
+               are available and what each one would break.
+            2. Read the release notes for anything that moved more than a patch,
+               and any security advisory that applies.
+            3. `npm install`, then run the checks this repo actually has — look
+               in package.json rather than guessing at the script names. If
+               there is a build, run it: a package can pass tests and still
+               break the build.
+            4. If a bump fails, revert that one package and keep the rest.
+
+            Your note is what a person reads on Sunday morning instead of eight
+            dependabot PRs. Lead with anything that needs a decision. Say which
+            checks you ran and what they said. If nothing needed bumping, say
+            that in one line and leave the tree alone.

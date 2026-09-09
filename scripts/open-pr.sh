@@ -7,11 +7,25 @@
 # quietly and the comment step still posts the answer.
 set -euo pipefail
 
-if [ -z "$(git status --porcelain)" ]; then
+# Only what THIS run touched. A previous step may have left build output or a
+# cache in the workspace, and `git add -A` would sweep that into the pull
+# request. `fx-tree-before.txt` is the porcelain listing taken just before fx
+# ran; anything in it is somebody else's mess.
+before="$RUNNER_TEMP/fx-tree-before.txt"
+[ -f "$before" ] || : > "$before"
+changed="$RUNNER_TEMP/fx-tree-changed.txt"
+git status --porcelain | grep -vxF -f "$before" > "$changed" || true
+
+if [ ! -s "$changed" ]; then
   echo "The agent changed no files; nothing to open a pull request for." >&2
   echo "pr_url=" >> "$GITHUB_OUTPUT"
   exit 0
 fi
+
+# The porcelain line is a two-character status, a space, then the path. A rename
+# reads `R  old -> new`; take the new name.
+paths="$RUNNER_TEMP/fx-paths.txt"
+sed -E 's/^.{3}//; s/^.* -> //; s/^"(.*)"$/\1/' "$changed" > "$paths"
 
 branch="${BRANCH_PREFIX:-fx}/${ISSUE_NUMBER:-run}-$(date +%s)"
 
@@ -31,7 +45,7 @@ if [ -z "$title" ]; then
   if [ -n "$first" ] && [ "${#first}" -le 72 ]; then
     title="$first"
   else
-    title="fx: changes for #${ISSUE_NUMBER:-} "
+    title="fx: changes for #${ISSUE_NUMBER:-}"
   fi
 fi
 
@@ -39,7 +53,7 @@ git config user.name "${GIT_USER_NAME:-github-actions[bot]}"
 git config user.email "${GIT_USER_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}"
 
 git checkout -b "$branch"
-git add -A
+xargs -a "$paths" -d '\n' -r git add --
 
 # The workflow token cannot push a change to .github/workflows — GitHub refuses
 # it whatever the permissions say. Drop those rather than fail the whole run,
@@ -57,7 +71,10 @@ if ! git diff --cached --quiet -- .github/workflows 2>/dev/null; then
 fi
 
 git commit -q -m "$title" -m "Opened by fx from #${ISSUE_NUMBER:-} · run ${GITHUB_RUN_ID:-}"
-git push -q origin "$branch"
+# Pushed with the token in the URL rather than through the remote, so this
+# works with `persist-credentials: false` — which every example sets, so the
+# checkout leaves no credential on disk for the agent to find.
+git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$branch"
 
 body_file="$RUNNER_TEMP/fx-pr-body.md"
 {
@@ -73,8 +90,13 @@ body_file="$RUNNER_TEMP/fx-pr-body.md"
     "${GITHUB_SERVER_URL:-https://github.com}" "$GITHUB_REPOSITORY" "${GITHUB_RUN_ID:-}"
 } > "$body_file"
 
-url=$(gh pr create --repo "$GITHUB_REPOSITORY" --head "$branch" \
-  --title "$title" --body-file "$body_file" 2>&1 | tail -1)
+# stderr stays on stderr: merged into stdout, a gh warning would become the
+# "URL" and end up rendered in the comment.
+# Draft, always. Nobody has read this yet, and a draft cannot be merged by
+# accident — the same reason anthropics/claude-code-action stops at a branch and
+# makes a person click "create pull request".
+url=$(gh pr create --repo "$GITHUB_REPOSITORY" --head "$branch" --draft \
+  --title "$title" --body-file "$body_file" | tail -1)
 
 echo "pr_url=$url" >> "$GITHUB_OUTPUT"
 echo "Opened $url" >&2

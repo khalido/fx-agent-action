@@ -16,7 +16,9 @@ response_path="$RUNNER_TEMP/fx-response.md"
 started=$(date +%s)
 
 set +e
-fx ask --json --no-save --no-color < "$PROMPT_PATH" > "$out" 2>"$RUNNER_TEMP/fx-stderr.log"
+# Not --no-save: the saved session is what the HTML artifact is rendered from,
+# and the runner is thrown away at the end of the job anyway.
+fx ask --json --no-color < "$PROMPT_PATH" > "$out" 2>"$RUNNER_TEMP/fx-stderr.log"
 fx_status=$?
 set -e
 duration=$(( $(date +%s) - started ))
@@ -28,6 +30,7 @@ if [ ! -s "$out" ]; then
 fi
 
 exit_code=$(jq -r '.exit_code // 0' "$out")
+session_id=$(jq -r '.session_id // empty' "$out")
 model=$(jq -r '.model // "unknown"' "$out")
 steps=$(jq -r '.steps // 0' "$out")
 in_tokens=$(jq -r '.usage.input_tokens // 0' "$out")
@@ -43,10 +46,25 @@ if [ ! -s "$response_path" ]; then
   exit 1
 fi
 
-# fx reports tokens, not dollars, and this action does not carry a price list.
-# Cost is left empty unless fx itself reports one, so the tripwire only fires on
-# a number fx stands behind.
-cost=$(jq -r '.usage.cost // .cost // empty' "$out")
+# Scrub secrets out of the answer, here, once, before anything downstream reads
+# the file. See scripts/redact.py for why this is not covered by GitHub's log
+# masking.
+python3 -c "import sys; sys.path.insert(0, '$(dirname "$0")'); import redact; \
+  found = redact.redact_file(sys.argv[1]); \
+  [print(f'::warning::Removed {n} from the agent answer before posting it.') for n in found]" \
+  "$response_path"
+
+# `fx ask --json` reports tokens but no price. `fx usage` does report dollars —
+# it keeps a local ledger — and the runner's HOME is new every job, so the only
+# spend in it is this run's. That is where the footer's figure comes from.
+cost=$(fx usage --json 2>/dev/null | jq -r '.totals.spend // empty' || true)
+fx_version=$(fx --version 2>/dev/null | head -1 || echo unknown)
+
+# A random delimiter, not a fixed one. The payload is model output: with a fixed
+# `FX_EOF` an answer containing that line could close the block early and append
+# its own key=value pairs, and later keys win — which would let it redirect
+# `response_path` at any file on the runner.
+delim="FX_EOF_$(openssl rand -hex 12 2>/dev/null || date +%s%N)"
 
 {
   echo "response_path=$response_path"
@@ -54,14 +72,16 @@ cost=$(jq -r '.usage.cost // .cost // empty' "$out")
   echo "cost=$cost"
   echo "steps=$steps"
   echo "duration=$duration"
+  echo "fx_version=$fx_version"
+  echo "session_id=$session_id"
   echo "input_tokens=$in_tokens"
   echo "output_tokens=$out_tokens"
   # The answer itself, for a workflow that wants it inline rather than as a
   # file. Delimited, because it is markdown and will contain newlines.
-  echo "response<<FX_EOF"
+  echo "response<<$delim"
   cat "$response_path"
   echo ""
-  echo "FX_EOF"
+  echo "$delim"
 } >> "$GITHUB_OUTPUT"
 
 {

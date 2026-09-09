@@ -1,5 +1,5 @@
 name: fx agent
-description: Run the fx coding agent on an issue or PR, read-only by default, and post its answer as one comment.
+description: Answer a question or make the change, on a GitHub issue or PR. Reads the thread, works in your own runner, posts one comment. Read-only unless asked for a pull request.
 author: khalido
 branding:
   icon: message-square
@@ -8,7 +8,13 @@ branding:
 # A composite action on purpose: every step is shell you can read in the
 # browser, there is no bundled dist/ to trust, and `gh` and `jq` are already on
 # every GitHub runner. The agent logic lives in fx; the GitHub logic lives in
-# scripts/, two files, both readable.
+# scripts/, four files, all readable.
+#
+# What the agent may do to your repository is decided by the WORKFLOW's
+# `permissions:` block, not by anything in here. Read-only notes want
+# `contents: read` + `issues: write`. A run that opens pull requests wants
+# `contents: write` + `pull-requests: write`, and branch protection on your
+# default branch is what makes "at most a PR" true rather than hoped for.
 
 inputs:
   prompt:
@@ -73,8 +79,9 @@ inputs:
   max_cost:
     description: >-
       Fail the step when the run costs more than this many US dollars. A
-      tripwire, not a brake — fx has no mid-run spend cap, so the real bound is
-      the job timeout at a cheap model's prices. 0 disables it.
+      tripwire, not a brake. The real brake is a budget on the AI Gateway key
+      itself (`vercel ai-gateway api-keys create --budget 20`), which the
+      gateway enforces with a 402. 0 disables it.
     required: false
     default: '1'
   github_token:
@@ -85,10 +92,13 @@ inputs:
       trigger other workflows.
     required: false
     default: ${{ github.token }}
-  fx_version:
-    description: fx release tag to install, e.g. `v0.0.8`. Defaults to the latest release.
+  session_artifact:
+    description: >-
+      Upload the whole fx session as one self-contained HTML file you can open
+      from the run page — every tool call, its arguments and its result. It is
+      what you read when an answer comes out wrong. Kept 7 days.
     required: false
-    default: ''
+    default: 'true'
   working_directory:
     description: The directory fx treats as its workspace.
     required: false
@@ -105,27 +115,47 @@ outputs:
     description: How many tool-loop steps the agent took.
     value: ${{ steps.run.outputs.steps }}
   comment_url:
-    description: 'The comment that was posted or updated, when `post: comment`.'
+    description: 'The comment that was posted or updated, when post is comment.'
     value: ${{ steps.comment.outputs.url }}
   pr_url:
     description: The pull request the agent opened, when it wrote anything.
     value: ${{ steps.pr.outputs.pr_url }}
+  session_id:
+    description: The fx session id, for `fx session <id>` locally.
+    value: ${{ steps.run.outputs.session_id }}
 
 runs:
   using: composite
   steps:
+    # 👀 on the triggering comment, before anything slow, so a two-minute run
+    # doesn't look like nothing happened. Removed again at the end — it is a
+    # spinner, not a badge. Copied from shaftoe/pi-coding-agent-action, which
+    # also taught us that an inline PR review comment is a different endpoint.
+    - name: React to the comment
+      id: react
+      if: ${{ github.event.comment.id != '' }}
+      shell: bash
+      continue-on-error: true
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        COMMENT_ID: ${{ github.event.comment.id }}
+        REVIEW_COMMENT: ${{ github.event.comment.pull_request_review_id }}
+      run: bash "${{ github.action_path }}/scripts/react.sh" add
+
+    # fx ships weekly and there is no version input on purpose: pinning an
+    # agent to an old release ages badly, and the whole value here is that fx
+    # keeps getting better. The tag is resolved only to key the cache.
     - name: Resolve the fx version
       id: version
       shell: bash
       run: |
         set -euo pipefail
-        if [ -n "${{ inputs.fx_version }}" ]; then
-          echo "tag=${{ inputs.fx_version }}" >> "$GITHUB_OUTPUT"
-        else
-          tag=$(curl -fsSL https://api.github.com/repos/vercel-labs/fx/releases/latest \
-            | jq -r '.tag_name // "latest"')
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-        fi
+        tag=$(curl -fsSL https://api.github.com/repos/vercel-labs/fx/releases/latest 2>/dev/null \
+          | jq -r '.tag_name // empty' || true)
+        # actions/cache never overwrites an existing key, so a FIXED fallback
+        # would pin whatever binary happened to be cached the day the API was
+        # rate-limited, forever. A dated one self-heals the next day.
+        echo "tag=${tag:-unresolved-$(date -u +%Y-%m-%d)}" >> "$GITHUB_OUTPUT"
 
     # fx is a single static binary, so caching it turns a download into a
     # restore. Keyed on the resolved tag, so a new release busts it.
@@ -157,25 +187,8 @@ runs:
         INCLUDE_THREAD: ${{ inputs.include_thread }}
         INCLUDE_DIFF: ${{ inputs.include_diff }}
         INPUT_TRIGGER: ${{ inputs.trigger }}
+        INPUT_MODE: ${{ inputs.mode }}
       run: bash "${{ github.action_path }}/scripts/build-prompt.sh"
-
-    # `auto` reads the verb the comment used. Deciding here, once, keeps the
-    # question "can this turn write" out of three later steps.
-    - name: Decide read or write
-      id: mode
-      shell: bash
-      env:
-        MODE: ${{ inputs.mode }}
-        WANTS_PR: ${{ steps.context.outputs.wants_pr }}
-      run: |
-        set -euo pipefail
-        case "$MODE" in
-          read|write) effective="$MODE" ;;
-          auto) effective=$([ -n "$WANTS_PR" ] && echo write || echo read) ;;
-          *) echo "::error::mode must be read, write or auto (got '$MODE')" >&2; exit 1 ;;
-        esac
-        echo "effective=$effective" >> "$GITHUB_OUTPUT"
-        echo "Running in $effective mode." >&2
 
     # One config file per run, written globally (~/.fx/settings.json) rather
     # than under a workspace profile, because the checkout path varies.
@@ -184,26 +197,27 @@ runs:
     # `models.gateway`. Setting it here rather than through FX_MODEL keeps one
     # owner for the value.
     #
-    # The two modes are not the same mechanism, and the difference matters:
+    # The two modes are not the same mechanism:
     #
-    #  read  — `auto` plus deny rules on edit and shell. The rules are what
-    #          make it read-only, and they HIDE those tools from the model, so
-    #          it never spends a step discovering it cannot write and the run
-    #          still exits 0.
-    #  write — `full-access`. The runner is a throwaway container with a
-    #          scoped token, so fx's own review layer only adds latency and a
-    #          separate billed model request per unresolved call. Verified
-    #          headless: no acknowledgement prompt, shell runs, exit 0.
+    #  read  — `auto` plus deny rules on edit and shell. The rules HIDE those
+    #          tools from the model, so it never spends a step discovering it
+    #          cannot write and the run still exits 0. A question has no
+    #          business running commands, and a model with no shell cannot
+    #          read the runner's environment back to you.
+    #  write — `full-access`. The runner is a throwaway container and the real
+    #          boundary is the workflow's token scope, so fx's own review layer
+    #          only adds latency and a separate billed model request per
+    #          unresolved call. Verified headless: no acknowledgement prompt.
     #
-    # Never full-access in read mode: it disables the permission checks the
-    # deny rules ride on.
+    # Never full-access in read mode: it disables the checks the deny rules
+    # ride on.
     #
     # Web search needs no key. On the AI Gateway fx uses Exa by default and
     # bills it through the same gateway key.
     - name: Configure fx
       shell: bash
       env:
-        MODE: ${{ steps.mode.outputs.effective }}
+        MODE: ${{ steps.context.outputs.mode }}
         MODEL: ${{ inputs.model }}
       run: |
         set -euo pipefail
@@ -219,7 +233,14 @@ runs:
             > "$HOME/.fx/settings.json"
         fi
         echo "fx configured: $MODE mode, model $MODEL" >&2
-        cat "$HOME/.fx/settings.json" >&2
+
+    # What the workspace looked like BEFORE the agent touched it, so the pull
+    # request carries only its changes and not a previous step's build output.
+    - name: Note the working tree
+      if: ${{ steps.context.outputs.mode == 'write' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: git status --porcelain > "$RUNNER_TEMP/fx-tree-before.txt"
 
     - name: Run fx
       id: run
@@ -231,9 +252,36 @@ runs:
         MAX_COST: ${{ inputs.max_cost }}
       run: bash "${{ github.action_path }}/scripts/run-fx.sh"
 
+    # The session as one HTML page, on the run. Both prior arts ship something
+    # like this and it is the difference between "the note is wrong" and
+    # knowing why. Rendered from `fx session <id> --json`, secrets stripped —
+    # a tool result can quote a file, and an artifact leaves the runner.
+    - name: Render the session
+      id: session
+      if: ${{ always() && inputs.session_artifact == 'true' && steps.run.outputs.session_id != '' }}
+      shell: bash
+      continue-on-error: true
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        SESSION_META: >-
+          ${{ inputs.model }} · ${{ steps.run.outputs.steps }} steps ·
+          ${{ steps.run.outputs.duration }}s · fx ${{ steps.run.outputs.fx_version }}
+      run: |
+        python3 "${{ github.action_path }}/scripts/session-html.py" \
+          "${{ steps.run.outputs.session_id }}" "$RUNNER_TEMP/fx-session.html"
+        [ -s "$RUNNER_TEMP/fx-session.html" ] && echo "wrote=true" >> "$GITHUB_OUTPUT" || true
+
+    - name: Upload the session
+      if: ${{ always() && steps.session.outputs.wrote == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: fx-session-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/fx-session.html
+        retention-days: 7
+
     - name: Open a pull request
       id: pr
-      if: ${{ steps.mode.outputs.effective == 'write' }}
+      if: ${{ steps.context.outputs.mode == 'write' }}
       shell: bash
       working-directory: ${{ inputs.working_directory }}
       env:
@@ -243,9 +291,12 @@ runs:
         BRANCH_PREFIX: ${{ inputs.branch_prefix }}
       run: bash "${{ github.action_path }}/scripts/open-pr.sh"
 
+    # always(): a failed run is exactly when you want to be told why, and a
+    # bare red X with no comment is the worst outcome for someone who typed
+    # /fx and walked away.
     - name: Post the answer
       id: comment
-      if: ${{ inputs.post == 'comment' && steps.context.outputs.issue_number != '' }}
+      if: ${{ always() && inputs.post == 'comment' && steps.context.outputs.issue_number != '' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github_token }}
@@ -254,6 +305,19 @@ runs:
         MODEL: ${{ inputs.model }}
         COST: ${{ steps.run.outputs.cost }}
         DURATION: ${{ steps.run.outputs.duration }}
-        FX_VERSION: ${{ steps.version.outputs.tag }}
+        STEPS: ${{ steps.run.outputs.steps }}
+        FX_VERSION: ${{ steps.run.outputs.fx_version }}
         PR_URL: ${{ steps.pr.outputs.pr_url }}
+        RUN_FAILED: ${{ steps.run.outcome }}
       run: bash "${{ github.action_path }}/scripts/post-comment.sh"
+
+    - name: Take the reaction back off
+      if: ${{ always() && steps.react.outputs.reaction_id != '' }}
+      shell: bash
+      continue-on-error: true
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        COMMENT_ID: ${{ github.event.comment.id }}
+        REVIEW_COMMENT: ${{ github.event.comment.pull_request_review_id }}
+        REACTION_ID: ${{ steps.react.outputs.reaction_id }}
+      run: bash "${{ github.action_path }}/scripts/react.sh" remove

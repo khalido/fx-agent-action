@@ -1,0 +1,54 @@
+# `/fx pr add a retry to the Tracmor client` — the agent makes the change and
+# opens a pull request you review like anyone else's.
+#
+# This is the one that can write, so read the permissions block before you copy
+# it. `contents: write` lets the job push a BRANCH; it also lets it push to your
+# default branch, and only branch protection stops that. Turn branch protection
+# on first.
+#
+# Also worth knowing: GitHub does not run workflows on commits made with the
+# default GITHUB_TOKEN, so a PR opened this way gets no CI. If that matters,
+# pass a GitHub App token — see "A bot with its own name" in the README.
+
+name: fx build it
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fx-build-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # `pr`, `do`, `build`, `implement` or `fix` as the first word after /fx.
+    # Anything else is a question and belongs in the read-only workflow.
+    #
+    # The author gate matters more here than anywhere else: this run edits code
+    # with a token that can push. Keep it to people who could already push.
+    if: >-
+      startsWith(github.event.comment.body, '/fx') &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: khalido/fx-agent-action@v1
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+        with:
+          model: anthropic/claude-sonnet-5
+          # `auto` — a plain question still answers read-only, and only the
+          # `pr`/`do`/`build`/`implement`/`fix` verbs get the write tools.
+          mode: auto
+          max_steps: '60'

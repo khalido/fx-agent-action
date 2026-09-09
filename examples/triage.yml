@@ -1,0 +1,70 @@
+# Label a new issue from the labels the repo already has.
+#
+# Shows the other way to use this action: `post: none`, so nothing is commented
+# and the answer comes back on the `response` output for a later step to act on.
+# The agent stays read-only and never touches the GitHub API — it picks from a
+# list and the workflow applies the choice. A model that cannot label cannot
+# invent a label, and the step that can is four lines you can read.
+
+name: fx triage
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  triage:
+    if: github.event.issue.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: List the labels this repo actually has
+        id: labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label list --repo "$GITHUB_REPOSITORY" --limit 100 \
+            --json name,description \
+            --template '{{range .}}{{.name}} — {{.description}}{{"\n"}}{{end}}' \
+            > labels.txt
+          echo "count=$(wc -l < labels.txt)" >> "$GITHUB_OUTPUT"
+
+      - uses: khalido/fx-agent-action@v1
+        id: fx
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+        with:
+          mode: read
+          post: none
+          prompt: |
+            Pick the labels for this issue. Read `labels.txt` for the ones this
+            repository has, and read enough of the code to tell which area the
+            issue is about.
+
+            Reply with the label names on one line, comma separated, and
+            nothing else. Only names from that file, at most three, and none at
+            all if none of them fit — an empty reply is a fine answer.
+
+      - name: Apply them
+        if: ${{ steps.fx.outputs.response != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+          PICKED: ${{ steps.fx.outputs.response }}
+        run: |
+          set -euo pipefail
+          # One line, names only. Anything the model invented is rejected by
+          # `gh label list` above being the only source, and by --add-label
+          # failing on a name that does not exist.
+          labels=$(printf '%s' "$PICKED" | head -n1 | tr -d '`"' | xargs)
+          [ -n "$labels" ] || { echo "No labels picked."; exit 0; }
+          echo "Applying: $labels"
+          gh issue edit "$NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "$labels"
