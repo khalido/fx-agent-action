@@ -20,7 +20,11 @@ those tools, so the model never sees them.
 
 **`/fx pr add a retry to the Tracmor client`** — same, plus the edit and shell
 tools. What it changed becomes a branch and a **draft** pull request, linked
-from the comment. `do`, `build`, `implement` and `fix` work too.
+from the comment.
+
+`pr` is the only word that turns writing on, and that is deliberate. `do`,
+`build` and `fix` were in that list until they weren't: "/fx do we already have
+a retry helper?" is a question, and it was handing a full-access shell to one.
 
 Nothing else. No slash-command vocabulary to learn, no dashboard.
 
@@ -81,9 +85,9 @@ More ideas, all portable to this action:
 
 ## When it goes wrong
 
-Every run uploads the session as one HTML file: the prompt, every tool call
-with its arguments, every result, the answer. It is on the run page for a week.
-Read that before guessing.
+Every run uploads the session as one HTML file — every tool call, its arguments
+and its result — kept on the run page for a week. Read that before guessing.
+Turn it off with `session_artifact: false`.
 
 ## Do you need this?
 
@@ -132,7 +136,11 @@ asking — every example does:
 if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
 ```
 
-That matters more for `/fx pr`, which writes code with a token that can push.
+That gate is load-bearing, not tidiness. Hidden markup is stripped out of the
+issue body and the thread, but the text of the comment that summons the agent
+is its instruction — so whoever can type `/fx` is directing it.
+
+It matters more for `/fx pr`, which writes code with a token that can push.
 Keep it to people who could already push, and turn on branch protection: what
 the agent may do to your repo is decided by the workflow's `permissions:`
 block, not by anything in this action.

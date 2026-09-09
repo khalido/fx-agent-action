@@ -19,7 +19,7 @@ branding:
 inputs:
   prompt:
     description: >-
-      What to ask. The issue or PR context is prepended automatically. Leave it
+      What to ask. The issue or PR thread is appended below it. Leave it
       empty and the text after the trigger phrase in the comment becomes the
       prompt, which is how "/fx does the sync engine already cover this?" works.
     required: false
@@ -100,7 +100,9 @@ inputs:
     required: false
     default: 'true'
   working_directory:
-    description: The directory fx treats as its workspace.
+    description: >-
+      The directory fx treats as its workspace. Read mode only — a pull request
+      is always built from the repository root, whatever this says.
     required: false
     default: '.'
 
@@ -236,11 +238,19 @@ runs:
 
     # What the workspace looked like BEFORE the agent touched it, so the pull
     # request carries only its changes and not a previous step's build output.
+    # A tree object, written to a scratch index so the real one is untouched —
+    # `git status` text cannot tell "already dirty" from "dirty in the same
+    # way", and collapses an untracked directory to a single line.
     - name: Note the working tree
       if: ${{ steps.context.outputs.mode == 'write' }}
       shell: bash
       working-directory: ${{ inputs.working_directory }}
-      run: git status --porcelain > "$RUNNER_TEMP/fx-tree-before.txt"
+      run: |
+        set -euo pipefail
+        cd "$(git rev-parse --show-toplevel)"
+        export GIT_INDEX_FILE="$RUNNER_TEMP/fx-index-before"
+        git add -A -- .
+        git write-tree > "$RUNNER_TEMP/fx-tree-before"
 
     - name: Run fx
       id: run
@@ -279,9 +289,12 @@ runs:
         path: ${{ runner.temp }}/fx-session.html
         retention-days: 7
 
+    # always(): the run can fail AFTER fx has edited the tree — the cost
+    # tripwire in particular — and skipping this step would throw that work
+    # away with the runner.
     - name: Open a pull request
       id: pr
-      if: ${{ steps.context.outputs.mode == 'write' }}
+      if: ${{ always() && steps.context.outputs.mode == 'write' }}
       shell: bash
       working-directory: ${{ inputs.working_directory }}
       env:

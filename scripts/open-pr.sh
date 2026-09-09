@@ -7,25 +7,40 @@
 # quietly and the comment step still posts the answer.
 set -euo pipefail
 
-# Only what THIS run touched. A previous step may have left build output or a
-# cache in the workspace, and `git add -A` would sweep that into the pull
-# request. `fx-tree-before.txt` is the porcelain listing taken just before fx
-# ran; anything in it is somebody else's mess.
-before="$RUNNER_TEMP/fx-tree-before.txt"
-[ -f "$before" ] || : > "$before"
-changed="$RUNNER_TEMP/fx-tree-changed.txt"
-git status --porcelain | grep -vxF -f "$before" > "$changed" || true
+# Pathspecs below are repo-root relative, and so is everything git prints, so
+# work from the root whatever `working_directory` was.
+cd "$(git rev-parse --show-toplevel)"
+
+# Only what THIS run touched. A previous step may have left build output in the
+# workspace, and staging everything would sweep that into the pull request.
+#
+# The comparison is between two TREE OBJECTS, not two `git status` listings.
+# Text-diffing porcelain looks equivalent and is not: ` M foo.txt` is
+# byte-identical before and after fx edits a file that was already dirty, so
+# that edit would vanish from the PR; and a pre-existing untracked directory
+# collapses to one `?? sub/` line that masks everything fx creates inside it.
+# A tree records content, so both cases come out right.
+before=$(cat "$RUNNER_TEMP/fx-tree-before" 2>/dev/null || true)
+if [ -z "$before" ]; then
+  echo "::warning::No pre-run tree snapshot; committing every change in the workspace." >&2
+  before=$(git hash-object -t tree /dev/null)
+fi
+
+GIT_INDEX_FILE="$RUNNER_TEMP/fx-index-after" git add -A -- .
+after=$(GIT_INDEX_FILE="$RUNNER_TEMP/fx-index-after" git write-tree)
+
+# NUL-delimited the whole way. A path with a space, a quote or a non-ASCII
+# character comes out of porcelain C-quoted (`"caf\303\251.txt"`), and feeding
+# that to a pathspec fails the match and, under `set -e`, throws away work fx
+# has already done.
+changed="$RUNNER_TEMP/fx-changed.z"
+git diff --name-only -z "$before" "$after" > "$changed"
 
 if [ ! -s "$changed" ]; then
   echo "The agent changed no files; nothing to open a pull request for." >&2
   echo "pr_url=" >> "$GITHUB_OUTPUT"
   exit 0
 fi
-
-# The porcelain line is a two-character status, a space, then the path. A rename
-# reads `R  old -> new`; take the new name.
-paths="$RUNNER_TEMP/fx-paths.txt"
-sed -E 's/^.{3}//; s/^.* -> //; s/^"(.*)"$/\1/' "$changed" > "$paths"
 
 branch="${BRANCH_PREFIX:-fx}/${ISSUE_NUMBER:-run}-$(date +%s)"
 
@@ -41,7 +56,7 @@ if fx pr < /dev/null > "$draft" 2>/dev/null; then
 fi
 if [ -z "$title" ]; then
   # The agent's first line, when it reads like a title rather than a paragraph.
-  first=$(head -n1 "$RESPONSE_PATH" | sed -E 's/^#+[[:space:]]*//; s/[[:space:]]*$//')
+  first=$(head -n1 "${RESPONSE_PATH:-/dev/null}" 2>/dev/null | sed -E 's/^#+[[:space:]]*//; s/[[:space:]]*$//')
   if [ -n "$first" ] && [ "${#first}" -le 72 ]; then
     title="$first"
   else
@@ -49,11 +64,17 @@ if [ -z "$title" ]; then
   fi
 fi
 
-git config user.name "${GIT_USER_NAME:-github-actions[bot]}"
-git config user.email "${GIT_USER_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}"
+# A model-written title starting with "-" would be read as a flag by `gh`.
+title=$(printf '%s' "$title" | sed -E 's/^[-[:space:]]+//')
+[ -n "$title" ] || title="fx: changes for #${ISSUE_NUMBER:-}"
+
+# The commit identity is the bot's, always. An App token changes who COMMENTS;
+# GitHub attributes a commit by the email inside it.
+git config user.name "github-actions[bot]"
+git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
 git checkout -b "$branch"
-xargs -a "$paths" -d '\n' -r git add --
+git add --pathspec-from-file="$changed" --pathspec-file-nul --
 
 # The workflow token cannot push a change to .github/workflows — GitHub refuses
 # it whatever the permissions say. Drop those rather than fail the whole run,
@@ -76,13 +97,19 @@ git commit -q -m "$title" -m "Opened by fx from #${ISSUE_NUMBER:-} · run ${GITH
 # checkout leaves no credential on disk for the agent to find.
 git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$branch"
 
+# The draft is model output and has not been through run-fx.sh's scrubber.
+python3 -c "import sys; sys.path.insert(0, sys.argv[2]); import redact; redact.redact_file(sys.argv[1])" \
+  "$draft" "$(dirname "$0")" 2>/dev/null || true
+
 body_file="$RUNNER_TEMP/fx-pr-body.md"
 {
   # fx's drafted body when we got one, else what the agent told the commenter.
   if [ -s "$draft" ] && [ -n "$(sed -n '/^[[:space:]]*\(\*\*\)\?Title:/,$p' "$draft" | tail -n +2)" ]; then
     sed -n '/^[[:space:]]*\(\*\*\)\?Title:/,$p' "$draft" | tail -n +2
-  else
+  elif [ -n "${RESPONSE_PATH:-}" ] && [ -s "${RESPONSE_PATH:-}" ]; then
     cat "$RESPONSE_PATH"
+  else
+    printf 'The run ended before the agent wrote a note. These are its edits; read them closely.\n'
   fi
   [ -n "${ISSUE_NUMBER:-}" ] && printf '\n\nFor #%s.' "$ISSUE_NUMBER"
   printf '%s' "$workflow_note"

@@ -29,13 +29,30 @@ HIDDEN_ATTR = re.compile(
     r'\s(?:title|alt|aria-label|data-[\w-]+)\s*=\s*(?:"[^"]*"|\'[^\']*\')',
     re.IGNORECASE,
 )
+# Attributes are only stripped INSIDE an HTML tag. Without this the same
+# pattern eats `const title = "My Post";` out of a diff, and the PR review then
+# reviews code that is not the code.
+HTML_TAG = re.compile(r'<[a-zA-Z/][^<>]*>')
+# `![alt][ref]`, the reference-style image, hides text the same way `![alt](x)`
+# does and is not matched by the inline pattern.
+IMAGE_REF = re.compile(r'!\[[^\]]*\](\[[^\]]*\])')
 ENTITY = re.compile(r'&#x?[0-9a-fA-F]{2,6};')
+
+
+def hide_only(text: str) -> str:
+    """The two tricks with no legitimate use anywhere: comments and invisibles.
+
+    Safe to run over text that is meant to be read as an instruction, where the
+    heavier rewrites below would mangle a legitimate request.
+    """
+    return INVISIBLE.sub('', HTML_COMMENT.sub('', text))
 
 
 def sanitize(text: str) -> str:
     text = HTML_COMMENT.sub('', text)
     text = IMAGE_ALT.sub(r'![image](\1)', text)
-    text = HIDDEN_ATTR.sub('', text)
+    text = IMAGE_REF.sub(r'![image]\1', text)
+    text = HTML_TAG.sub(lambda m: HIDDEN_ATTR.sub('', m.group(0)), text)
     # Entities are decoded by nothing here, but a model will read them as the
     # characters they name. Neutralise rather than decode.
     text = ENTITY.sub('&#…;', text)

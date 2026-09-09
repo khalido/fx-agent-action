@@ -14,10 +14,10 @@ before a change ships, and `gh`, `jq` and `python3` are already on every runner.
 | `action.yml` | inputs, outputs, and the step sequence |
 | `scripts/react.sh` | 👀 on the trigger comment, taken off at the end |
 | `scripts/build-prompt.sh` | runtime block, instruction, then the thread — and it decides read vs write |
+| `scripts/session-html.py` | `fx session --json` → one readable HTML file |
 | `scripts/sanitize.py` | strips hidden markup out of the untrusted block |
 | `scripts/run-fx.sh` | one `fx ask --json`, pull out the answer, scrub secrets, record the spend |
 | `scripts/redact.py` | the secret scrubber, shared by the answer and the session |
-| `scripts/session-html.py` | `fx session --json` → one readable HTML file |
 | `scripts/post-comment.sh` | upsert one comment, found by a hidden marker |
 | `scripts/open-pr.sh` | branch, commit, push, open the draft PR |
 
@@ -70,10 +70,25 @@ GitHub keeps the edit history, so overwriting loses nothing. The comment step
 runs under `always()`: a red X with no comment is the worst outcome for someone
 who typed a command and walked away.
 
-**Pull requests are drafts, and only carry what fx touched.** The tree is
-snapshotted before the run so a previous step's build output cannot ride along,
-and the draft state is the human-oversight step — the same reason
-`claude-code-action` stops at a branch and makes a person click the button.
+**Pull requests are drafts, and only carry what fx touched.** The draft state
+is the human-oversight step — the same reason `claude-code-action` stops at a
+branch and makes a person click the button.
+
+"What fx touched" is the difference between two **tree objects**, written to a
+scratch index before and after the run. Diffing `git status` text instead looks
+equivalent and is not, in two ways that both lose work silently: ` M foo.txt`
+is byte-identical before and after fx edits a file that was already dirty, and
+a pre-existing untracked directory collapses to one `?? sub/` line that masks
+every file fx creates inside it. Everything downstream is NUL-delimited
+(`git diff -z` → `--pathspec-from-file=- --pathspec-file-nul`) because a path
+with a space or an accent comes out of git C-quoted, and feeding that back as a
+pathspec fails the match and, under `set -e`, throws away work fx has done.
+
+**`pr` is the only verb that turns writing on.** It was five — `do`, `build`,
+`implement`, `fix` — and every one of those can start a question. "/fx do we
+already have a retry helper?" parsed as a write request and handed a
+full-access shell to a question. A word that can be the first word of a
+question cannot also be the switch.
 
 **`github_token` is an input defaulting to `github.token`.** Bring your own App
 token for a named bot, and for CI to run on what it pushes. No hosted service,

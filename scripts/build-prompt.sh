@@ -50,20 +50,33 @@ else
     exit 1
   fi
   # Strip the trigger, then read the first word as a verb. `/fx pr <what>` asks
-  # for a branch and a pull request; anything else is a question to answer in a
-  # comment. A short vocabulary on purpose.
+  # for a branch and a pull request; anything else is a question answered in a
+  # comment.
+  #
+  # ONE verb, and it used to be five. `do`, `build`, `implement` and `fix` all
+  # start ordinary questions — "/fx do we already have a retry helper?" — and
+  # each of those would have handed a full-access shell to a question. A verb
+  # that can be the first word of a question cannot also be the switch that
+  # turns writing on.
   trigger="${INPUT_TRIGGER:-/fx}"
   body="${comment#"$trigger"}"
   body="${body#"${body%%[![:space:]]*}"}"
   verb="$(printf '%s' "$body" | head -n1 | awk '{print tolower($1)}')"
   case "$verb" in
-    pr|do|build|implement|fix)
+    pr)
       wants_pr=1
       body="${body:${#verb}}"
       body="${body#"${body%%[![:space:]]*}"}"
       ;;
   esac
   printf '%s' "$body" > "$instruction"
+  # The instruction is trusted by position — it sits above the fence — so the
+  # two tricks that hide text from the person who typed it come out. Only those
+  # two: the heavier rewrites would mangle a legitimate request that quotes
+  # code or markdown.
+  python3 -c "import sys; sys.path.insert(0, sys.argv[2]); import sanitize;
+p = sys.argv[1]; t = open(p, encoding='utf-8', errors='replace').read()
+open(p, 'w', encoding='utf-8').write(sanitize.hide_only(t))" "$instruction" "$(dirname "$0")"
 fi
 
 # --- read or write -----------------------------------------------------------

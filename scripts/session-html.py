@@ -60,16 +60,20 @@ def render(session, meta):
            '<h1>fx session</h1>',
            f'<p class="meta">{esc(meta)}</p>']
 
-    for turn in session.get('history', []):
+    for turn in session.get('history') or []:
         asked = (turn.get('user') or {}).get('text')
         if asked:
             out.append(f'<div class="turn"><div class="who">Asked</div><pre>{esc(asked)}</pre></div>')
 
-        for step in (turn.get('execution') or {}).get('tool_steps', []):
+        for step in (turn.get('execution') or {}).get('tool_steps') or []:
             if step.get('assistant'):
                 out.append(f'<div class="turn"><div class="who">Said</div><pre>{esc(step["assistant"])}</pre></div>')
-            results = {r.get('tool_call_id'): r for r in step.get('tool_results', [])}
-            for call in step.get('tool_calls', []):
+            results = {r.get('tool_call_id'): r
+                       for r in step.get('tool_results') or []
+                       if isinstance(r, dict)}
+            for call in step.get('tool_calls') or []:
+                if not isinstance(call, dict):
+                    continue
                 result = results.get(call.get('id')) or {}
                 status = result.get('status', '?')
                 css = ' class="fail"' if status != 'success' else ''

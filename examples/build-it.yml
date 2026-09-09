@@ -27,8 +27,8 @@ concurrency:
 
 jobs:
   build:
-    # `pr`, `do`, `build`, `implement` or `fix` as the first word after /fx.
-    # Anything else is a question and belongs in the read-only workflow.
+    # `pr` as the first word after /fx, and only that. Anything else is a
+    # question, answers read-only, and opens nothing.
     #
     # The author gate matters more here than anywhere else: this run edits code
     # with a token that can push. Keep it to people who could already push.
@@ -48,7 +48,7 @@ jobs:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
         with:
           model: anthropic/claude-sonnet-5
-          # `auto` — a plain question still answers read-only, and only the
-          # `pr`/`do`/`build`/`implement`/`fix` verbs get the write tools.
+          # `auto` — a plain question still answers read-only; only `/fx pr`
+          # gets the write tools.
           mode: auto
           max_steps: '60'
