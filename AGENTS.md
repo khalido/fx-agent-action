@@ -68,11 +68,23 @@ service they host, which is why we take a token as an input instead.
 
 ## The defaults, and why each one
 
-- **`mode: read`.** Denies `edit` and `shell` through `~/.fx/settings.json`
-  rather than through the prompt. Verified on fx 0.0.8: the model reports it has
-  no shell tool at all, so it never spends a step finding out, and the run exits
-  0. `FX_PERMISSION_MODE=ask` also blocks writes, but a rejected call aborts the
-  run with exit 1, which is worse.
+- **Two permission modes, not one.** Read mode is `auto` plus deny rules on
+  `edit` and `shell` in `~/.fx/settings.json`; the rules are what enforce it,
+  and they hide those tools from the model, so it never spends a step finding
+  out and the run exits 0. Write mode is `full-access`, because the runner is a
+  throwaway container with a scoped token and fx's review layer would only add
+  latency and a separate billed model request per unresolved call — verified
+  headless, no acknowledgement prompt. **Never full-access in read mode**: it
+  disables the checks the deny rules ride on. `FX_PERMISSION_MODE=ask` also
+  blocks writes, but a rejected call aborts with exit 1, which is worse than a
+  hidden tool.
+- **Rules go in the global settings file, not a workspace profile.** The
+  checkout path changes between runs, so a workspace-scoped rule would silently
+  not apply.
+- **The model is set in the config file, not `FX_MODEL`.** One owner for the
+  value. `models` is keyed by provider; the gateway's is `models.gateway`.
+- **No Exa key.** On the AI Gateway fx uses Exa for `web_search` by default and
+  bills it through the same key.
 - **Post `final_output`, not `output`.** The finished answer, not the running
   commentary. This is what makes the action model-agnostic.
 - **One comment, updated.** A marker on the first line, invisible when rendered.

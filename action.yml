@@ -177,36 +177,55 @@ runs:
         echo "effective=$effective" >> "$GITHUB_OUTPUT"
         echo "Running in $effective mode." >&2
 
-    # Read mode denies the edit and shell tools by rule rather than by prompt,
-    # which HIDES them from the model: it never spends a step discovering it
-    # cannot write, and the run still exits 0. Verified against fx 0.0.8.
+    # One config file per run, written globally (~/.fx/settings.json) rather
+    # than under a workspace profile, because the checkout path varies.
+    #
+    # `models` is keyed by provider, so the gateway's default model is
+    # `models.gateway`. Setting it here rather than through FX_MODEL keeps one
+    # owner for the value.
+    #
+    # The two modes are not the same mechanism, and the difference matters:
+    #
+    #  read  — `auto` plus deny rules on edit and shell. The rules are what
+    #          make it read-only, and they HIDE those tools from the model, so
+    #          it never spends a step discovering it cannot write and the run
+    #          still exits 0.
+    #  write — `full-access`. The runner is a throwaway container with a
+    #          scoped token, so fx's own review layer only adds latency and a
+    #          separate billed model request per unresolved call. Verified
+    #          headless: no acknowledgement prompt, shell runs, exit 0.
+    #
+    # Never full-access in read mode: it disables the permission checks the
+    # deny rules ride on.
+    #
+    # Web search needs no key. On the AI Gateway fx uses Exa by default and
+    # bills it through the same gateway key.
     - name: Configure fx
       shell: bash
       env:
         MODE: ${{ steps.mode.outputs.effective }}
+        MODEL: ${{ inputs.model }}
       run: |
         set -euo pipefail
         mkdir -p "$HOME/.fx"
         if [ "$MODE" = "read" ]; then
-          cat > "$HOME/.fx/settings.json" <<'JSON'
-        {
-          "permission_mode": "auto",
-          "permission": {
-            "edit": { "*": "deny" },
-            "shell": { "*": "deny" }
-          }
-        }
-        JSON
+          jq -n --arg model "$MODEL" \
+            '{permission_mode:"auto", models:{gateway:$model},
+              permission:{edit:{"*":"deny"}, shell:{"*":"deny"}}}' \
+            > "$HOME/.fx/settings.json"
         else
-          printf '{\n  "permission_mode": "auto"\n}\n' > "$HOME/.fx/settings.json"
+          jq -n --arg model "$MODEL" \
+            '{permission_mode:"full-access", models:{gateway:$model}}' \
+            > "$HOME/.fx/settings.json"
         fi
+        echo "fx configured: $MODE mode, model $MODEL" >&2
+        cat "$HOME/.fx/settings.json" >&2
 
     - name: Run fx
       id: run
       shell: bash
       working-directory: ${{ inputs.working_directory }}
       env:
-        FX_MODEL: ${{ inputs.model }}
         FX_MAX_AGENT_STEPS: ${{ inputs.max_steps }}
         PROMPT_PATH: ${{ steps.context.outputs.prompt_path }}
         MAX_COST: ${{ inputs.max_cost }}

@@ -1,64 +1,78 @@
 # fx agent action
 
-Run the [fx](https://fx.sh) coding agent on a GitHub issue or pull request.
-Read-only by default. It posts one comment and updates that same comment on
-every re-run.
+Comment `/fx` on a GitHub issue and get a useful reply. Say `/fx pr` and get a
+pull request instead.
 
 ```yaml
 - uses: khalido/fx-agent-action@v1
   env:
     AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
-  with:
-    prompt_file: .github/fx/review.md
 ```
 
-## Why this exists
+Runs [fx](https://fx.sh) inside your own Actions runner. Read-only unless you
+ask for a PR. One comment, edited in place, not a new one every run.
 
-fx is a single static binary with an AI Gateway built in, web search via Exa,
-and skills it reads from `.claude/skills/`. What it does not have is the GitHub
-half: reading the thread, posting an answer, not spamming the issue. That is
-all this action is.
+## Two things it does
 
-Two things make it small. `fx ask --json` separates the finished answer from
-everything the model said on the way there, so there is no "stop narrating"
-rule to write and any model works. And fx's own permission rules deny the edit
-and shell tools by configuration, so in read mode the model never sees them,
-never spends a step discovering it cannot write, and still exits clean.
+**`/fx why is the sync running twice?`** — it reads the repo and the thread, and
+replies. It cannot edit a file or run a command: fx's own permission rules deny
+those tools, so the model never sees them.
+
+**`/fx pr add a retry to the Tracmor client`** — same, plus the edit and shell
+tools. Whatever it changed becomes a branch and a PR, linked from the comment.
+`do`, `build`, `implement` and `fix` work too.
+
+Nothing else. No slash-command vocabulary to learn, no dashboard.
 
 ## Setup
 
-1. An [AI Gateway](https://vercel.com/docs/ai-gateway) key as a repository
-   secret named `AI_GATEWAY_API_KEY`. Give it a spend cap; the agent runs on
-   whatever anyone can put in an issue.
-2. A workflow. Start from [`examples/`](examples/).
+Two things: an [AI Gateway](https://vercel.com/docs/ai-gateway) key as a repo
+secret called `AI_GATEWAY_API_KEY`, and a workflow. Copy
+[`examples/issue-notes.yml`](examples/issue-notes.yml).
+
+Give the key a spend cap. Anyone who can comment can spend it.
+
+You don't need an Exa key. Web search is on, and the gateway bills it.
 
 ## Inputs
 
-| Input | Default | What |
+Every one is optional.
+
+| Input | Default | |
 |---|---|---|
-| `prompt` | — | What to ask. Empty means the triggering comment is the prompt. |
-| `prompt_file` | — | A file in the repo holding the instructions instead. |
-| `model` | `zai/glm-5.3-flash` | Any AI Gateway model id. |
-| `mode` | `read` | `read` denies edit and shell. `write` allows them. |
-| `max_steps` | `30` | Cap on the tool loop. |
-| `post` | `comment` | `comment` posts on the issue, `none` leaves it on the output. |
-| `issue_number` | the triggering one | Which issue to read and answer on. |
-| `include_thread` | `true` | Give the agent the comments, not just the body. |
-| `include_diff` | `true` | On a PR, give it the diff. |
-| `max_cost` | `1` | Fail the step over this many dollars, when fx reports a cost. |
-| `github_token` | `github.token` | Pass an App token for a bot with its own name. |
-| `fx_version` | latest | Pin the fx release. |
-| `working_directory` | `.` | The directory fx treats as its workspace. |
+| `prompt` | the comment | What to ask. |
+| `prompt_file` | — | A file in your repo holding the instructions instead, so you edit the agent without touching YAML. |
+| `model` | `zai/glm-5.3-flash` | Any gateway model id. |
+| `mode` | `auto` | `auto` lets the comment decide. `read` and `write` force it. |
+| `trigger` | `/fx` | |
+| `max_steps` | `30` | |
+| `post` | `comment` | `none` leaves the answer on the `response` output instead. |
+| `max_cost` | `1` | Fail over this many dollars. |
+| `github_token` | the workflow's | Pass an App token for a named bot. |
+| `fx_version` | latest | Pin it. |
 
-## Outputs
+Outputs: `response`, `cost`, `steps`, `comment_url`, `pr_url`.
 
-`response` (the answer as markdown), `cost`, `steps`, `comment_url`.
+## Do you need this?
 
-## Give the bot its own name
+Probably not, for one repo. This is the whole integration without it:
 
-By default comments post as `github-actions[bot]`. For a bot with its own name
-and avatar, create a GitHub App, install it on the repo, and hand this action
-its token:
+```yaml
+- run: curl -fsSL https://fx.sh/setup.sh | bash
+- run: |
+    fx ask --json "$PROMPT" | jq -r .final_output | gh issue comment "$N" --body-file -
+```
+
+[`examples/minimal-no-action.yml`](examples/minimal-no-action.yml) is that,
+finished. Start there. The action adds the four things you'd otherwise paste
+into every repo: one comment instead of a pile, a cached binary instead of a
+download per run, read-only that actually holds, and the thread and diff handed
+to the model.
+
+## A bot with its own name
+
+Comments post as `github-actions[bot]`. For your own name and avatar, make a
+GitHub App, install it on the repo, pass its token:
 
 ```yaml
 - uses: actions/create-github-app-token@v2
@@ -66,36 +80,33 @@ its token:
   with:
     app-id: ${{ secrets.FX_APP_ID }}
     private-key: ${{ secrets.FX_APP_PRIVATE_KEY }}
-
 - uses: khalido/fx-agent-action@v1
   with:
     github_token: ${{ steps.app.outputs.token }}
 ```
 
-There is no hosted service and nothing to sign up for. The App is yours,
-optional, and the only thing it changes is the name on the comment and the
-ability for anything the bot opens to trigger other workflows, which the
-default token deliberately cannot do.
+There is no app to install from me and no service in the middle. The App is
+yours. I don't want the ability to mint tokens into your repo.
 
-## What it will not do
+## Before you turn it on
 
-It will not run your code, edit files, or open a pull request unless you set
-`mode: write`, which no comment-triggered workflow should. It has no hidden
-network access beyond fx's own web search. It does not talk to any service the
-action author runs, because there isn't one.
-
-## Safety
-
-The issue body and every comment reach the model. Treat them as untrusted:
-they are appended below a fence that says so, after your instructions, and in
-`read` mode the worst a crafted issue can achieve is a rude comment.
-
-Gate the trigger on who is asking. Every example does:
+The issue body and every comment go to the model. Gate the trigger on who's
+asking — every example does:
 
 ```yaml
 if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
 ```
 
-## Licence
+That matters more once `/fx pr` is live: it writes code, so the people who can
+trigger it should be the people who can already push.
+
+## Inspiration
+
+- [fx](https://fx.sh) — the agent. Vercel Labs, Apache-2.0, one static binary.
+- [shaftoe/pi-coding-agent-action](https://github.com/shaftoe/pi-coding-agent-action)
+  — the comment-marker trick, and the author gate, came from reading it.
+- [opencode](https://opencode.ai/docs/github/) — caching the binary by release
+  tag, and the `/oc` shape. They publish an App and run a token service; this
+  doesn't.
 
 MIT.
