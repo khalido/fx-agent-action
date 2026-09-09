@@ -1,0 +1,52 @@
+# One short note on an issue, refreshed in place when someone comments /fx.
+#
+# The instructions live in .github/fx/issue-notes.md in YOUR repo, so the agent
+# is edited without touching this workflow. Start from prompts/issue-notes.md
+# in this repo.
+
+name: fx issue notes
+
+on:
+  # Switch this on once you like the notes:
+  # issues:
+  #   types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: fx-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  note:
+    # Never a PR (issue_comment fires for those too), never a bot, and only
+    # someone in the org — the issue body reaches the model, so the person
+    # pointing it at the repo should be someone you already trust with a push.
+    if: >-
+      github.event.issue.pull_request == null &&
+      (
+        github.event_name == 'issues' ||
+        (
+          startsWith(github.event.comment.body, '/fx') &&
+          github.event.comment.user.type != 'Bot' &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+        )
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: khalido/fx-agent-action@v1
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+        with:
+          prompt_file: .github/fx/issue-notes.md
+          model: zai/glm-5.3-flash
+          mode: read

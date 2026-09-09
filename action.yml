@@ -1,0 +1,240 @@
+name: fx agent
+description: Run the fx coding agent on an issue or PR, read-only by default, and post its answer as one comment.
+author: khalido
+branding:
+  icon: message-square
+  color: gray-dark
+
+# A composite action on purpose: every step is shell you can read in the
+# browser, there is no bundled dist/ to trust, and `gh` and `jq` are already on
+# every GitHub runner. The agent logic lives in fx; the GitHub logic lives in
+# scripts/, two files, both readable.
+
+inputs:
+  prompt:
+    description: >-
+      What to ask. The issue or PR context is prepended automatically. Leave it
+      empty and the text after the trigger phrase in the comment becomes the
+      prompt, which is how "/fx does the sync engine already cover this?" works.
+    required: false
+    default: ''
+  prompt_file:
+    description: >-
+      A file in the checked-out repo holding the instructions, used instead of
+      `prompt`. Keeping the wording in the repo means editing the agent without
+      touching YAML.
+    required: false
+    default: ''
+  model:
+    description: Any AI Gateway model id, e.g. `zai/glm-5.3-flash`, `anthropic/claude-sonnet-5`.
+    required: false
+    default: zai/glm-5.3-flash
+  mode:
+    description: >-
+      `auto` (default) lets the comment decide: `/fx <question>` answers in a
+      comment and cannot write, `/fx pr <what to build>` gets the edit and shell
+      tools and opens a pull request. `read` and `write` force one or the other
+      and ignore the verb. In every case read mode DENIES the edit and shell
+      tools outright, so the model never sees them.
+    required: false
+    default: auto
+  trigger:
+    description: The phrase that starts a comment aimed at the agent.
+    required: false
+    default: /fx
+  branch_prefix:
+    description: Branch names for pull requests the agent opens.
+    required: false
+    default: fx
+  max_steps:
+    description: Hard cap on the agent's tool loop. 0 means unlimited.
+    required: false
+    default: '30'
+  post:
+    description: >-
+      `comment` (default) posts the answer on the triggering issue or PR,
+      updating its own previous comment in place. `none` posts nothing and
+      leaves the answer on the `response` output for a later step — which is
+      what a release review or a scheduled job wants.
+    required: false
+    default: comment
+  issue_number:
+    description: Which issue or PR to read and comment on. Defaults to the one that triggered the run.
+    required: false
+    default: ''
+  include_thread:
+    description: Give the agent the whole comment thread, not just the title and body.
+    required: false
+    default: 'true'
+  include_diff:
+    description: On a pull request, give the agent the diff as well.
+    required: false
+    default: 'true'
+  max_cost:
+    description: >-
+      Fail the step when the run costs more than this many US dollars. A
+      tripwire, not a brake — fx has no mid-run spend cap, so the real bound is
+      the job timeout at a cheap model's prices. 0 disables it.
+    required: false
+    default: '1'
+  github_token:
+    description: >-
+      Defaults to the workflow's own token, which posts as github-actions[bot].
+      Pass a GitHub App installation token (see actions/create-github-app-token)
+      to give the bot its own name and avatar, and to let anything it opens
+      trigger other workflows.
+    required: false
+    default: ${{ github.token }}
+  fx_version:
+    description: fx release tag to install, e.g. `v0.0.8`. Defaults to the latest release.
+    required: false
+    default: ''
+  working_directory:
+    description: The directory fx treats as its workspace.
+    required: false
+    default: '.'
+
+outputs:
+  response:
+    description: The agent's final answer, as markdown.
+    value: ${{ steps.run.outputs.response }}
+  cost:
+    description: What the run cost, in US dollars.
+    value: ${{ steps.run.outputs.cost }}
+  steps:
+    description: How many tool-loop steps the agent took.
+    value: ${{ steps.run.outputs.steps }}
+  comment_url:
+    description: 'The comment that was posted or updated, when `post: comment`.'
+    value: ${{ steps.comment.outputs.url }}
+  pr_url:
+    description: The pull request the agent opened, when it wrote anything.
+    value: ${{ steps.pr.outputs.pr_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve the fx version
+      id: version
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -n "${{ inputs.fx_version }}" ]; then
+          echo "tag=${{ inputs.fx_version }}" >> "$GITHUB_OUTPUT"
+        else
+          tag=$(curl -fsSL https://api.github.com/repos/vercel-labs/fx/releases/latest \
+            | jq -r '.tag_name // "latest"')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        fi
+
+    # fx is a single static binary, so caching it turns a download into a
+    # restore. Keyed on the resolved tag, so a new release busts it.
+    - name: Restore fx from the cache
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/bin/fx
+        key: fx-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.tag }}
+
+    - name: Install fx
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: curl -fsSL https://fx.sh/setup.sh | bash
+
+    - name: Put fx on PATH
+      shell: bash
+      run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: Build the prompt
+      id: context
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        INPUT_PROMPT: ${{ inputs.prompt }}
+        INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
+        INPUT_ISSUE_NUMBER: ${{ inputs.issue_number }}
+        INCLUDE_THREAD: ${{ inputs.include_thread }}
+        INCLUDE_DIFF: ${{ inputs.include_diff }}
+        INPUT_TRIGGER: ${{ inputs.trigger }}
+      run: bash "${{ github.action_path }}/scripts/build-prompt.sh"
+
+    # `auto` reads the verb the comment used. Deciding here, once, keeps the
+    # question "can this turn write" out of three later steps.
+    - name: Decide read or write
+      id: mode
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        WANTS_PR: ${{ steps.context.outputs.wants_pr }}
+      run: |
+        set -euo pipefail
+        case "$MODE" in
+          read|write) effective="$MODE" ;;
+          auto) effective=$([ -n "$WANTS_PR" ] && echo write || echo read) ;;
+          *) echo "::error::mode must be read, write or auto (got '$MODE')" >&2; exit 1 ;;
+        esac
+        echo "effective=$effective" >> "$GITHUB_OUTPUT"
+        echo "Running in $effective mode." >&2
+
+    # Read mode denies the edit and shell tools by rule rather than by prompt,
+    # which HIDES them from the model: it never spends a step discovering it
+    # cannot write, and the run still exits 0. Verified against fx 0.0.8.
+    - name: Configure fx
+      shell: bash
+      env:
+        MODE: ${{ steps.mode.outputs.effective }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOME/.fx"
+        if [ "$MODE" = "read" ]; then
+          cat > "$HOME/.fx/settings.json" <<'JSON'
+        {
+          "permission_mode": "auto",
+          "permission": {
+            "edit": { "*": "deny" },
+            "shell": { "*": "deny" }
+          }
+        }
+        JSON
+        else
+          printf '{\n  "permission_mode": "auto"\n}\n' > "$HOME/.fx/settings.json"
+        fi
+
+    - name: Run fx
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        FX_MODEL: ${{ inputs.model }}
+        FX_MAX_AGENT_STEPS: ${{ inputs.max_steps }}
+        PROMPT_PATH: ${{ steps.context.outputs.prompt_path }}
+        MAX_COST: ${{ inputs.max_cost }}
+      run: bash "${{ github.action_path }}/scripts/run-fx.sh"
+
+    - name: Open a pull request
+      id: pr
+      if: ${{ steps.mode.outputs.effective == 'write' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        ISSUE_NUMBER: ${{ steps.context.outputs.issue_number }}
+        RESPONSE_PATH: ${{ steps.run.outputs.response_path }}
+        BRANCH_PREFIX: ${{ inputs.branch_prefix }}
+      run: bash "${{ github.action_path }}/scripts/open-pr.sh"
+
+    - name: Post the answer
+      id: comment
+      if: ${{ inputs.post == 'comment' && steps.context.outputs.issue_number != '' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        ISSUE_NUMBER: ${{ steps.context.outputs.issue_number }}
+        RESPONSE_PATH: ${{ steps.run.outputs.response_path }}
+        MODEL: ${{ inputs.model }}
+        COST: ${{ steps.run.outputs.cost }}
+        DURATION: ${{ steps.run.outputs.duration }}
+        FX_VERSION: ${{ steps.version.outputs.tag }}
+        PR_URL: ${{ steps.pr.outputs.pr_url }}
+      run: bash "${{ github.action_path }}/scripts/post-comment.sh"

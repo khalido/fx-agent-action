@@ -1,0 +1,53 @@
+# Review every pull request once, and again when it is pushed to.
+#
+# `pull_request` (not `pull_request_target`) on purpose: the fork's code is
+# checked out here, so the job must never hold a token that can write anything
+# but this comment. Fork PRs are skipped for the same reason — a fork's PR gets
+# a read-only token and no access to your secrets, so the run would fail
+# confusingly rather than dangerously.
+
+name: fx pr review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: fx-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: khalido/fx-agent-action@v1
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+        with:
+          model: zai/glm-5.3-flash
+          mode: read
+          include_diff: true
+          prompt: |
+            Review this pull request. You can only read files.
+
+            Say what is wrong, not what is fine. Every claim names the file.
+            Lead with anything that would break in production, then correctness,
+            then anything the repo already does that this reimplements.
+
+            Read the existing review comments in the thread before you start and
+            do not repeat feedback someone has already given.
+
+            Under 200 words. No praise, no summary of the diff back to its
+            author, no restating the title. If the change looks right, say so in
+            one line and stop.
