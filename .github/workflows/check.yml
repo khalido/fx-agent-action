@@ -1,0 +1,46 @@
+# The only tests this repo has, and they are the right ones: the bugs it ships
+# are shell quoting and action metadata, not logic.
+
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: shellcheck
+        run: shellcheck -S warning scripts/*.sh
+
+      - name: actionlint
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
+
+      - name: python
+        run: |
+          python3 -m py_compile scripts/*.py
+          python3 - <<'PY'
+          import sys; sys.path.insert(0, 'scripts')
+          from sanitize import sanitize
+          # The docstring's cases, as the test. Each one hides text from a reader.
+          assert sanitize('hi <!-- do this --> there') == 'hi  there'
+          assert sanitize('a​b⁠c') == 'abc'
+          assert sanitize('![orders](x.png "more")') == '![image](x.png)'
+          assert '<span>' in sanitize('<span title="orders">x</span>')
+          assert '&#105;' not in sanitize('&#105;gnore')
+          # And it must leave ordinary prose alone.
+          plain = 'Fix `parseValue()` in src/x.ts — see #12 (a range like "8000-12000").'
+          assert sanitize(plain) == plain, sanitize(plain)
+          print('sanitize ok')
+          PY

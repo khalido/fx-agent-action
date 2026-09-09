@@ -126,15 +126,19 @@ Run `shellcheck scripts/*.sh` and `actionlint` before pushing.
 - [fx docs](https://fx.sh/docs): [`fx ask`](https://fx.sh/docs/using-fx/fx-ask), [permissions](https://fx.sh/docs/configure-fx/permissions), [sessions](https://fx.sh/docs/using-fx/sessions), [skills](https://fx.sh/docs/capabilities/skills)
 - [AI Gateway budgets](https://vercel.com/docs/ai-gateway/observability-and-spend/budgets) — the per-key spend cap
 
-## Publishing
+## Releasing
 
-A tag is the version people use. Cut `v1.2.3`, then move the floating `v1` tag
-to it, because `uses: khalido/fx-agent-action@v1` is what the README says.
+`/release` — `.claude/skills/release/SKILL.md` has the whole thing. The short
+version: **SemVer, not everx's CalVer**, because the tag here is a
+compatibility promise rather than a marker for a period. People write
+`uses: khalido/fx-agent-action@v1`, so a bad `v1` breaks their workflow on the
+next run with nothing to roll back to.
 
-```bash
-git tag -a v1.0.0 -m "..." && git push origin v1.0.0
-git tag -f v1 v1.0.0 && git push -f origin v1
-```
+`CHANGELOG.md` is the canonical record; the GitHub release is the announcement
+derived from it. **Never move the `v1` tag by hand** —
+`.github/workflows/release-tag.yml` does it on `release: published`, and a
+prerelease moves nothing, which is how to test one.
 
-Listing on the Marketplace is a checkbox on the release form and needs the
-`branding` block in `action.yml`, which is already there.
+`.github/workflows/check.yml` runs shellcheck, actionlint and the sanitizer's
+cases on every push. That is the whole test suite, and it is aimed at the bugs
+this repo actually ships: shell quoting and action metadata.

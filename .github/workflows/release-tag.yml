@@ -1,0 +1,42 @@
+# Publishing a release moves the major tag to it, because `uses:
+# khalido/fx-agent-action@v1` is what the README tells people to write and a
+# tag they have to bump by hand is a tag they never bump.
+#
+# v1.2.3 published → v1 now points at v1.2.3. A prerelease moves nothing.
+
+name: move the major tag
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  retag:
+    if: github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Point vN at this release
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          # Refuse anything that is not vMAJOR.MINOR.PATCH — a typo here moves
+          # the tag every consumer is pinned to.
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::'$TAG' is not vMAJOR.MINOR.PATCH; not moving anything." >&2; exit 1 ;;
+          esac
+          major="${TAG%%.*}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa "$major" -m "$major → $TAG" "$TAG"
+          git push -f origin "$major"
+          echo "$major now points at $TAG" >> "$GITHUB_STEP_SUMMARY"
