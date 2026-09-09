@@ -32,7 +32,8 @@ secret called `AI_GATEWAY_API_KEY`, and a workflow. Copy
 
 Give the key a spend cap. Anyone who can comment can spend it.
 
-You don't need an Exa key. Web search is on, and the gateway bills it.
+You don't need an Exa key. Web search is on by default and the gateway bills it
+as [a model](https://vercel.com/ai-gateway/models/exa-search), on the same key.
 
 ## Inputs
 

@@ -17,6 +17,13 @@ Three files hold everything:
 | `scripts/build-prompt.sh` | instruction first, GitHub context after, fenced as evidence |
 | `scripts/run-fx.sh` | one `fx ask --json`, pull out the answer, enforce the cost tripwire |
 | `scripts/post-comment.sh` | upsert one comment, found by a hidden marker |
+| `scripts/open-pr.sh` | branch, commit, push, and open the PR after a write turn |
+
+`fx pr` writes the PR title and body, and it reads the **uncommitted** working
+tree — verified on 0.0.8, it runs `git diff` and changes nothing itself. So it
+must run before the commit, which is why `open-pr.sh` calls it first and does
+the git work afterwards. It has no `--json`, so its prose is parsed loosely with
+a fallback to the agent's own answer.
 
 Keep it that way. If a change wants a fourth script, ask whether it belongs in
 the prompt instead.
@@ -83,8 +90,9 @@ service they host, which is why we take a token as an input instead.
   not apply.
 - **The model is set in the config file, not `FX_MODEL`.** One owner for the
   value. `models` is keyed by provider; the gateway's is `models.gateway`.
-- **No Exa key.** On the AI Gateway fx uses Exa for `web_search` by default and
-  bills it through the same key.
+- **No Exa key.** On the AI Gateway fx uses Exa for `web_search` by default,
+  and Vercel bills it as [a model on the gateway](https://vercel.com/ai-gateway/models/exa-search)
+  against the same `AI_GATEWAY_API_KEY`. Nothing else to provision.
 - **Post `final_output`, not `output`.** The finished answer, not the running
   commentary. This is what makes the action model-agnostic.
 - **One comment, updated.** A marker on the first line, invisible when rendered.

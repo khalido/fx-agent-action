@@ -14,9 +14,25 @@ if [ -z "$(git status --porcelain)" ]; then
 fi
 
 branch="${BRANCH_PREFIX:-fx}/${ISSUE_NUMBER:-run}-$(date +%s)"
-title="${PR_TITLE:-}"
+
+# `fx pr` drafts a title and body from the diff — but it reads the UNCOMMITTED
+# working tree (verified on 0.0.8: it runs `git diff` and changes nothing), so
+# it has to run here, before the commit below. It has no --json, so the prose is
+# parsed loosely and anything unexpected falls back to the agent's own answer.
+draft="$RUNNER_TEMP/fx-pr-draft.md"
+title=''
+if fx pr < /dev/null > "$draft" 2>/dev/null; then
+  title=$(grep -m1 -E '^[[:space:]]*(\*\*)?Title:' "$draft" \
+    | sed -E 's/^[[:space:]]*(\*\*)?Title:(\*\*)?[[:space:]]*//; s/[[:space:]]*$//')
+fi
 if [ -z "$title" ]; then
-  title="fx: $(git status --porcelain | wc -l | tr -d ' ') file(s) for #${ISSUE_NUMBER:-}"
+  # The agent's first line, when it reads like a title rather than a paragraph.
+  first=$(head -n1 "$RESPONSE_PATH" | sed -E 's/^#+[[:space:]]*//; s/[[:space:]]*$//')
+  if [ -n "$first" ] && [ "${#first}" -le 72 ]; then
+    title="$first"
+  else
+    title="fx: changes for #${ISSUE_NUMBER:-} "
+  fi
 fi
 
 git config user.name "${GIT_USER_NAME:-github-actions[bot]}"
@@ -45,7 +61,12 @@ git push -q origin "$branch"
 
 body_file="$RUNNER_TEMP/fx-pr-body.md"
 {
-  cat "$RESPONSE_PATH"
+  # fx's drafted body when we got one, else what the agent told the commenter.
+  if [ -s "$draft" ] && [ -n "$(sed -n '/^[[:space:]]*\(\*\*\)\?Title:/,$p' "$draft" | tail -n +2)" ]; then
+    sed -n '/^[[:space:]]*\(\*\*\)\?Title:/,$p' "$draft" | tail -n +2
+  else
+    cat "$RESPONSE_PATH"
+  fi
   [ -n "${ISSUE_NUMBER:-}" ] && printf '\n\nFor #%s.' "$ISSUE_NUMBER"
   printf '%s' "$workflow_note"
   printf '\n\n---\nOpened by [fx](https://fx.sh) · [run](%s/%s/actions/runs/%s). Nobody has reviewed this yet.\n' \
