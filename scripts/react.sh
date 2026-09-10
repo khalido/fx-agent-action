@@ -8,20 +8,26 @@
 # conversation comment.
 set -euo pipefail
 
-[ -n "${COMMENT_ID:-}" ] || exit 0
-
-if [ -n "${REVIEW_COMMENT:-}" ]; then
+# Three places a reaction can go: an inline PR review comment, a conversation
+# comment, or, when the trigger was the issue itself being opened or edited,
+# the issue.
+if [ -n "${COMMENT_ID:-}" ] && [ -n "${REVIEW_COMMENT:-}" ]; then
   path="repos/$GITHUB_REPOSITORY/pulls/comments/$COMMENT_ID/reactions"
-else
+elif [ -n "${COMMENT_ID:-}" ]; then
   path="repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID/reactions"
+elif [ -n "${ISSUE_NUMBER:-}" ]; then
+  path="repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/reactions"
+else
+  exit 0
 fi
+target="${COMMENT_ID:+comment $COMMENT_ID}"; target="${target:-issue #$ISSUE_NUMBER}"
 
 case "${1:-add}" in
   add)
     # Never fatal: a missing reactions scope should not stop the actual work.
     id=$(gh api -X POST "$path" -f content=eyes --jq '.id' 2>/dev/null || true)
     echo "reaction_id=${id:-}" >> "$GITHUB_OUTPUT"
-    [ -n "$id" ] && echo "Reacted 👀 to comment $COMMENT_ID" >&2 || true
+    [ -n "$id" ] && echo "Reacted 👀 to $target" >&2 || true
     ;;
   remove)
     [ -n "${REACTION_ID:-}" ] || exit 0

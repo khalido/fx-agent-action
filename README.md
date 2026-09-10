@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: khalido/fx-agent-action@v1
@@ -163,7 +163,7 @@ Comments post as `github-actions[bot]`. For your own name, make a GitHub App,
 install it, pass its token:
 
 ```yaml
-- uses: actions/create-github-app-token@v2
+- uses: actions/create-github-app-token@v3
   id: app
   with:
     app-id: ${{ secrets.FX_APP_ID }}

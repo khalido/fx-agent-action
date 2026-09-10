@@ -26,7 +26,10 @@ as a break.
   is the only word that does this: `do`, `build` and `fix` can each start a
   question, and a word that can begin a question cannot also switch writing
   on.
-- 👀 on the trigger comment while it works, taken off when the answer lands.
+- 👀 on the trigger comment, or on the issue itself when a new or edited issue
+  is the trigger, taken off when the answer lands.
+- The footer reads fx · model · tokens · cost · time · run, with dollars to
+  three places.
 - The whole session as one self-contained HTML file on the run page — every
   tool call, its arguments and its result — kept for a week.
 - `examples/fx.yml`, the one file to copy into a repo: a note on every issue

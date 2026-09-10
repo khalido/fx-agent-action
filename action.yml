@@ -196,13 +196,14 @@ runs:
     # also taught us that an inline PR review comment is a different endpoint.
     - name: React to the comment
       id: react
-      if: ${{ github.event.comment.id != '' }}
+      if: ${{ github.event.comment.id != '' || github.event_name == 'issues' }}
       shell: bash
       continue-on-error: true
       env:
         GH_TOKEN: ${{ inputs.github_token }}
         COMMENT_ID: ${{ github.event.comment.id }}
         REVIEW_COMMENT: ${{ github.event.comment.pull_request_review_id }}
+        ISSUE_NUMBER: ${{ github.event.issue.number }}
       run: bash "${{ github.action_path }}/scripts/react.sh" add
 
     # fx ships weekly and there is no version input on purpose: pinning an
@@ -227,7 +228,7 @@ runs:
     # restore. Keyed on the resolved tag, so a new release busts it.
     - name: Restore fx from the cache
       id: cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.local/bin/fx
         key: fx-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.tag }}
@@ -359,7 +360,7 @@ runs:
 
     - name: Upload the session
       if: ${{ always() && steps.session.outputs.wrote == 'true' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: fx-session-${{ github.run_id }}-${{ github.run_attempt }}
         path: ${{ runner.temp }}/fx-session.html
@@ -396,8 +397,8 @@ runs:
         MODEL: ${{ inputs.model }}
         COST: ${{ steps.run.outputs.cost }}
         DURATION: ${{ steps.run.outputs.duration }}
-        STEPS: ${{ steps.run.outputs.steps }}
-        FX_VERSION: ${{ steps.run.outputs.fx_version }}
+        IN_TOKENS: ${{ steps.run.outputs.input_tokens }}
+        OUT_TOKENS: ${{ steps.run.outputs.output_tokens }}
         PR_URL: ${{ steps.pr.outputs.pr_url }}
         RUN_FAILED: ${{ steps.run.outcome }}
       run: bash "${{ github.action_path }}/scripts/post-comment.sh"
@@ -410,5 +411,6 @@ runs:
         GH_TOKEN: ${{ inputs.github_token }}
         COMMENT_ID: ${{ github.event.comment.id }}
         REVIEW_COMMENT: ${{ github.event.comment.pull_request_review_id }}
+        ISSUE_NUMBER: ${{ github.event.issue.number }}
         REACTION_ID: ${{ steps.react.outputs.reaction_id }}
       run: bash "${{ github.action_path }}/scripts/react.sh" remove

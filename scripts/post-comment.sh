@@ -36,11 +36,14 @@ repo="${GITHUB_REPOSITORY}"
   fi
   [ -n "${PR_URL:-}" ] && printf '\n\nOpened %s — nobody has reviewed it yet.\n' "$PR_URL"
   [ "${RUN_FAILED:-success}" = "failure" ] && printf '\n\n*The run itself failed; the answer above may be partial.*\n'
+  # fx · model · tokens · cost · time · run. Tokens in k past ten thousand,
+  # dollars to three places: the footer is for a glance, the run for the rest.
+  k() { if [ "${1:-0}" -ge 10000 ] 2>/dev/null; then printf '%dk' $(( $1 / 1000 )); else printf '%s' "${1:-0}"; fi; }
   printf '\n\n---\n'
   printf '[fx](https://fx.sh) `%s`' "${MODEL:-}"
+  [ -n "${IN_TOKENS:-}" ] && printf ' · %s in / %s out' "$(k "$IN_TOKENS")" "$(k "${OUT_TOKENS:-0}")"
+  [ -n "${COST:-}" ] && printf ' · $%s' "$(awk -v c="$COST" 'BEGIN { printf "%.3f", c + 0 }')"
   [ -n "${DURATION:-}" ] && printf ' · %ss' "$DURATION"
-  [ -n "${COST:-}" ] && printf ' · $%s' "$COST"
-  [ -n "${FX_VERSION:-}" ] && printf ' · v%s' "$FX_VERSION"
   printf ' · [run](%s/%s/actions/runs/%s)\n' "${GITHUB_SERVER_URL:-https://github.com}" "$repo" "${GITHUB_RUN_ID:-}"
 } > "$body"
 
