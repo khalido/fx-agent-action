@@ -3,6 +3,15 @@
 A GitHub Action that runs [fx](https://fx.sh) on an issue or PR and posts one
 comment. Read `README.md` for what it does; this file is how to work on it.
 
+**fx is new and changes weekly. When working on this action, read fx's docs,
+not your memory of them:** <https://fx.sh/llms.txt> is the index,
+<https://fx.sh/llms-full.txt> is every page in one file (about 200 KB;
+`curl -fsSL https://fx.sh/llms-full.txt > /tmp/fx.md` and grep it). Where the
+docs and the installed binary disagree, `fx <command> --help` wins. The pages
+this action leans on: `fx ask` (the JSON shape), Permissions (rules and
+modes), Configuration (`~/.fx/settings.json` keys and the `FX_*` variables),
+Usage and costs (`fx usage --json`), CLI (`fx pr`, `fx session`).
+
 ## Shape, and why
 
 **A composite action, not a JavaScript one.** Every step is shell you can read
@@ -12,6 +21,7 @@ before a change ships, and `gh`, `jq` and `python3` are already on every runner.
 | File | Does |
 |---|---|
 | `action.yml` | inputs, outputs, and the step sequence |
+| `scripts/check-actor.sh` | write access and human-actor checks, first, and the run fails if either says no |
 | `scripts/react.sh` | 👀 on the trigger comment, taken off at the end |
 | `scripts/build-prompt.sh` | runtime block, instruction, then the thread — and it decides read vs write |
 | `scripts/session-html.py` | `fx session --json` → one readable HTML file |
@@ -25,6 +35,34 @@ If a change wants a tenth file, ask whether it belongs in the prompt instead.
 
 ## The decisions, and why each one
 
+**The actor is checked inside the action, not only in the workflow's `if:`.**
+Two checks, the same two `claude-code-action` runs: write access on issue and
+PR events (`collaborators/{user}/permission`, which the default token can call
+because it is under Metadata), and not-a-bot on every event. Exceptions are
+explicit inputs, `allowed_non_write_users` and `allowed_bots`, and a rejection
+fails the run rather than skipping it: a silent skip hides a misconfigured
+workflow. `author_association` in the workflow `if:` stays as a cheap filter
+that saves booting a runner, but `MEMBER` means org member, not write, so it
+is not the check. `gh api` prints a 4xx body to *stdout*, so the fallback goes
+in an `||` on the assignment, never `|| echo` inside the substitution.
+
+**The trigger is a phrase matched anywhere in the comment, not a prefix.**
+Whole word, any case, `(^|\s)(?:/fx|…)(?=[\s.,!?;:]|$)`, the same regex shape
+`claude-code-action` uses for `@claude`; `trigger` may be a comma-separated
+list and the earliest match wins. The request is what follows the phrase; text
+before it is still in the thread block. Quoted lines are skipped, so a
+maintainer quoting a stranger's `pr` request to refuse it does not run it. A
+comment that lacks the phrase is an error, not a quiet skip, because a
+composite action has no early exit and every example gates the job with
+`if: contains(...)` anyway.
+
+**The default is `/fx`, a slash phrase, not a mention.** `github.com/fx` is a
+real person with 46 followers, and a mention in a public repo pages them. The
+two actions in the same position, pi and opencode, chose `/pi` and `/oc` for
+what is presumably the same reason; the two that use `@` own the handle.
+`@fx-agent` was unclaimed when this was written and works as a `trigger` value
+for anyone who prefers a mention.
+
 **Two permission modes, and they are different mechanisms.** Read mode is
 `auto` plus deny rules on `edit` and `shell` in `~/.fx/settings.json`; the rules
 hide those tools, so the model never spends a step finding out and the run exits
@@ -35,6 +73,15 @@ call. Verified headless: no acknowledgement prompt. Never full-access in read
 mode; it disables the checks the deny rules ride on, and a question has no
 business running commands.
 
+**`shell: true` is read mode plus the shell, allowed by rule.** An allow rule
+rather than leaving it to `auto`, because auto's review is a billed helper
+call per unresolved command. Edit tools stay denied; the shell can still write
+files, but nothing in read mode is committed or opened, so the checkout is
+scratch paper. What the shell does change is exposure: it can read the gateway
+key out of the environment, so `check-actor.sh` refuses it together with
+`allowed_non_write_users`, and `examples/fx.yml` restricts the note to issues
+from people with write access instead.
+
 **Rules go in the global settings file, not a workspace profile.** The checkout
 path changes between runs, so a workspace-scoped rule silently would not apply.
 
@@ -42,9 +89,29 @@ path changes between runs, so a workspace-scoped rule silently would not apply.
 value. `models` is keyed by provider; the gateway's is `models.gateway`.
 
 **No version pin for fx.** It ships weekly and pinning an agent ages badly. The
-release tag is resolved only to key the cache, and a failed resolve falls back
-to a *dated* key — `actions/cache` never overwrites an existing key, so a fixed
-fallback would pin a stale binary forever.
+release tag is resolved only to key the cache — through `gh api` with the job's
+token, because anonymous `api.github.com` is 60 requests an hour per IP shared
+with every other job on the runner — and a failed resolve falls back to a
+*dated* key: `actions/cache` never overwrites an existing key, so a fixed
+fallback would pin a stale binary forever. `FX_AUTO_UPGRADE=0` is set for the
+job so the restored binary does not replace itself mid-run.
+
+**Web search is provider-native, and restrictions travel as parameters.** On
+the gateway the model calls `exa_search` and Exa runs it server-side; fx
+records the call with `query`, `include_domains`, `start_published_date`,
+`end_published_date` and the raw result on the call itself, with no
+`tool_results` entry and no step counted in `fx ask --json`. Measured: "last
+six months, news.ycombinator.com" in the prompt became a dated window and a
+domain filter on the call. It works in read mode with no allow rule, so the
+config does not name it. `session-html.py` renders these calls from
+`provider_result`, since a note that cites a thread should show the search
+that found it.
+
+**Only the target repo's `AGENTS.md` reaches fx.** fx loads `~/.fx/AGENTS.md`
+and the primary workspace's files; on a runner HOME is fresh and the workspace
+is the checkout, and this action's own checkout sits under `_actions/`,
+outside it. Our runtime block in `build-prompt.sh` is the per-mode instruction
+layer instead.
 
 **Cost comes from `fx usage --json`, not from `fx ask`.** `ask` reports tokens
 and no price. `fx usage` keeps a local ledger with dollars in it, and the
@@ -107,23 +174,48 @@ ships a `dist/index.js` measured in hundreds of kilobytes. If it does become a
 JS action, do it wholesale — a composite that shells out to `node` is the worst
 of both.
 
-## refs/
+## Prior art
 
-`refs/` holds clones of the prior art, gitignored. `refs/README.md` says what is
-worth reading in each and how to refresh them. Read those before adding a
-feature: three of the things in this action came straight out of them.
+`docs/prior-art.md` is the distilled survey of a dozen coding-agent actions:
+trigger, actor checks, auth, output, safety, and the recipes they document,
+plus where this action deliberately differs. `refs/` holds clones of the three
+that matter most, gitignored; `refs/README.md` says how to refresh them. Read
+these before adding a feature, because most of what is here came out of them:
+
+- **[shaftoe/pi-coding-agent-action](https://github.com/shaftoe/pi-coding-agent-action)**,
+  the closest relative: `packages/pi-platform-github/` for reactions, the
+  two-marker comment upsert, and the seven GitHub tools it hands the agent.
+  Its README's project-trust caution is the best short note on why a PR's
+  checkout is a PR's instructions.
+- **[anthropics/claude-code-action](https://github.com/anthropics/claude-code-action)**:
+  `docs/security.md` and `src/github/validation/` for the actor checks and the
+  hidden-markup list; `docs/solutions.md` for workflow recipes.
+- **[anomalyco/opencode](https://github.com/anomalyco/opencode)**:
+  `packages/opencode/src/cli/cmd/github.handler.ts` for the tag-keyed binary
+  cache and the App-plus-token-service model this action chose not to copy.
 
 ## Testing a change
 
 There is no unit test worth writing for 300 lines of glue. Test it the way it
-runs:
+runs. The repo dogfoods itself: `.github/workflows/fx.yml` is `examples/fx.yml`
+with `uses: ./`, so `/fx` on an issue here runs the checked-out action, and
+`check.yml` fails if the two files drift. One caveat of `uses: ./` in write
+mode: fx edits the very scripts that run after it, so a `/fx pr` that touches
+`scripts/open-pr.sh` runs the edited version. Read that PR's diff first.
+
+Locally:
 
 ```bash
-export RUNNER_TEMP=$(mktemp -d) GITHUB_OUTPUT=$RUNNER_TEMP/out
-export GITHUB_REPOSITORY=owner/repo GH_TOKEN=$(gh auth token)
+export RUNNER_TEMP=$(mktemp -d)
+export GITHUB_OUTPUT=$RUNNER_TEMP/out GITHUB_REPOSITORY=owner/repo GH_TOKEN=$(gh auth token)
 export INPUT_PROMPT="Summarise this issue in one line." INPUT_ISSUE_NUMBER=1
 bash scripts/build-prompt.sh && cat "$RUNNER_TEMP/fx-prompt.md"
 ```
+
+`scripts/check-actor.sh` takes `ACTOR`, `EVENT_NAME`, `SENDER_TYPE`,
+`ALLOWED_NON_WRITE_USERS`, `ALLOWED_BOTS` and a real `GITHUB_REPOSITORY`;
+`octocat` on an `issue_comment` event should fail, `dependabot[bot]` should
+fail until listed, and a `schedule` event should skip the write check.
 
 `python3 -c 'from scripts.sanitize import sanitize'` for the sanitizer, with the
 cases listed in its docstring. Then end to end: push a branch, point a workflow
@@ -138,21 +230,25 @@ Run `shellcheck scripts/*.sh` and `actionlint` before pushing.
 - [Workflow commands](https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions) — `::error::`, `$GITHUB_OUTPUT`, step summaries
 - [Security hardening](https://docs.github.com/en/actions/security-for-github-actions/security-guidelines/security-hardening-for-github-actions) — untrusted input, `pull_request_target`, token scopes
 - [claude-code-action security](https://github.com/anthropics/claude-code-action/blob/main/docs/security.md) and [solutions](https://github.com/anthropics/claude-code-action/blob/main/docs/solutions.md)
-- [fx docs](https://fx.sh/docs): [`fx ask`](https://fx.sh/docs/using-fx/fx-ask), [permissions](https://fx.sh/docs/configure-fx/permissions), [sessions](https://fx.sh/docs/using-fx/sessions), [skills](https://fx.sh/docs/capabilities/skills)
+- [fx docs for agents](https://fx.sh/llms.txt), and the human pages: [`fx ask`](https://fx.sh/docs/using-fx/fx-ask), [permissions](https://fx.sh/docs/configure-fx/permissions), [configuration](https://fx.sh/docs/configure-fx/configuration), [sessions](https://fx.sh/docs/using-fx/sessions), [usage and costs](https://fx.sh/docs/using-fx/usage-and-costs)
+- [claude-code-action on GitHub Actions](https://code.claude.com/docs/en/github-actions) — the "who can trigger runs" rules this action copies
+- [Keep a Changelog 2.0.0](https://keepachangelog.com/en/2.0.0/) — the changelog format
 - [AI Gateway budgets](https://vercel.com/docs/ai-gateway/observability-and-spend/budgets) — the per-key spend cap
 
 ## Releasing
 
 `/release` — `.claude/skills/release/SKILL.md` has the whole thing. The short
-version: **SemVer, not everx's CalVer**, because the tag here is a
-compatibility promise rather than a marker for a period. People write
+version: **SemVer, not CalVer**, because the tag here is a compatibility
+promise rather than a marker for a period. People write
 `uses: khalido/fx-agent-action@v1`, so a bad `v1` breaks their workflow on the
 next run with nothing to roll back to.
 
-`CHANGELOG.md` is the canonical record; the GitHub release is the announcement
-derived from it. **Never move the `v1` tag by hand** —
-`.github/workflows/release-tag.yml` does it on `release: published`, and a
-prerelease moves nothing, which is how to test one.
+`CHANGELOG.md` is the canonical record and its rolled section *is* the release
+notes, pasted as-is; there is no second draft. **Never move the `v1` or `v1.N`
+tags by hand** — `.github/workflows/release-tag.yml` does it on
+`release: published`, and a prerelease moves nothing, which is how to test one. Dependabot keeps the
+`actions/*` this action and its workflows pin current
+(`.github/dependabot.yml`); a bump there is a PATCH unless it changes an input.
 
 `.github/workflows/check.yml` runs shellcheck, actionlint and the sanitizer's
 cases on every push. That is the whole test suite, and it is aimed at the bugs

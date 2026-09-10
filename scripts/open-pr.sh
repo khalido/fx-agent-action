@@ -95,7 +95,10 @@ git commit -q -m "$title" -m "Opened by fx from #${ISSUE_NUMBER:-} · run ${GITH
 # Pushed with the token in the URL rather than through the remote, so this
 # works with `persist-credentials: false` — which every example sets, so the
 # checkout leaves no credential on disk for the agent to find.
-git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$branch"
+# GITHUB_SERVER_URL rather than a hard-coded github.com, so this works on
+# GitHub Enterprise Server too.
+host="${GITHUB_SERVER_URL:-https://github.com}"; host="${host#https://}"
+git push -q "https://x-access-token:${GH_TOKEN}@${host}/${GITHUB_REPOSITORY}.git" "HEAD:$branch"
 
 # The draft is model output and has not been through run-fx.sh's scrubber.
 python3 -c "import sys; sys.path.insert(0, sys.argv[2]); import redact; redact.redact_file(sys.argv[1])" \

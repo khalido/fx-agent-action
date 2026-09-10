@@ -1,0 +1,12 @@
+# The only dependencies this action has are the actions/* it pins in action.yml
+# and in its workflows. Dependabot keeps those current; a bump is a PATCH
+# release unless it changes an input.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

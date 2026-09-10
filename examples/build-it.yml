@@ -1,5 +1,5 @@
-# `/fx pr add a retry to the Tracmor client` — the agent makes the change and
-# opens a pull request you review like anyone else's.
+# `/fx pr add a retry to the API client` — the agent makes the
+# change and opens a draft pull request you review like anyone else's.
 #
 # This is the one that can write, so read the permissions block before you copy
 # it. `contents: write` lets the job push a BRANCH; it also lets it push to your
@@ -27,15 +27,16 @@ concurrency:
 
 jobs:
   build:
-    # `pr` as the first word after /fx, and only that. Anything else is a
-    # question, answers read-only, and opens nothing.
+    # `pr` as the first word after the phrase, and only that. Anything else
+    # is a question, answers read-only, and opens nothing.
     #
-    # The author gate matters more here than anywhere else: this run edits code
-    # with a token that can push. Keep it to people who could already push.
+    # This `if:` is a filter that saves booting a runner. The check is inside
+    # the action: the commenter must have write access to this repo, and must
+    # not be a bot. That matters more here than anywhere else, because this
+    # run edits code with a token that can push.
     if: >-
-      startsWith(github.event.comment.body, '/fx') &&
-      github.event.comment.user.type != 'Bot' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      contains(github.event.comment.body, '/fx') &&
+      github.event.comment.user.type != 'Bot'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

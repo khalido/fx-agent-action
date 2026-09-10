@@ -11,7 +11,11 @@
 # a command and walked away.
 set -euo pipefail
 
-MARKER='<!-- fx-agent-action -->'
+# COMMENT_KEY keeps two fx jobs on one thread apart: an issue note and a /fx
+# answer are different comments, each updated in place, not one overwriting
+# the other. The marker is matched whole, so `fx-agent-action -->` never
+# matches `fx-agent-action:note -->`.
+MARKER="<!-- fx-agent-action${COMMENT_KEY:+:$COMMENT_KEY} -->"
 LIMIT=60000   # GitHub rejects a comment body over 65,536 characters with a 422
 body="$RUNNER_TEMP/fx-comment.md"
 repo="${GITHUB_REPOSITORY}"
@@ -43,7 +47,7 @@ repo="${GITHUB_REPOSITORY}"
 # Ours is a comment whose body starts with the marker. Paginated because a long
 # thread would otherwise hide it past the first page.
 existing=$(gh api "repos/$repo/issues/$ISSUE_NUMBER/comments" --paginate \
-  --jq "[.[] | select(.body | startswith(\"$MARKER\")) | .id] | last // empty" 2>/dev/null || true)
+  --jq "[.[] | select((.body // \"\") | startswith(\"$MARKER\")) | .id] | last // empty" 2>/dev/null || true)
 
 if [ -n "$existing" ]; then
   url=$(gh api -X PATCH "repos/$repo/issues/comments/$existing" \

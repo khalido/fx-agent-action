@@ -16,6 +16,10 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: fx-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
 jobs:
   triage:
     if: github.event.issue.user.type != 'Bot'
@@ -44,6 +48,10 @@ jobs:
         with:
           mode: read
           post: none
+          # The actor is whoever opened the issue, and anyone can. Fine here:
+          # the prompt is fixed, the run cannot write, and the only thing it
+          # can do with the answer is pick from labels that already exist.
+          allowed_non_write_users: '*'
           prompt: |
             Pick the labels for this issue. Read `labels.txt` for the ones this
             repository has, and read enough of the code to tell which area the
@@ -61,10 +69,20 @@ jobs:
           PICKED: ${{ steps.fx.outputs.response }}
         run: |
           set -euo pipefail
-          # One line, names only. Anything the model invented is rejected by
-          # `gh label list` above being the only source, and by --add-label
-          # failing on a name that does not exist.
-          labels=$(printf '%s' "$PICKED" | head -n1 | tr -d '`"' | xargs)
-          [ -n "$labels" ] || { echo "No labels picked."; exit 0; }
-          echo "Applying: $labels"
-          gh issue edit "$NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "$labels"
+          # One line, names only, and each one checked against the list the
+          # repo actually has before anything is applied. The model read that
+          # list, but it also read the issue, and the issue is untrusted.
+          keep=()
+          IFS=',' read -ra picked <<< "$(printf '%s' "$PICKED" | head -n1 | tr -d '`"')"
+          for name in "${picked[@]}"; do
+            name=$(printf '%s' "$name" | xargs)
+            [ -n "$name" ] || continue
+            if grep -qxF -- "$name" <(sed 's/ — .*//' labels.txt); then
+              keep+=("$name")
+            else
+              echo "::warning::Ignoring '$name': not a label this repo has."
+            fi
+          done
+          [ "${#keep[@]}" -gt 0 ] || { echo "No labels picked."; exit 0; }
+          echo "Applying: ${keep[*]}"
+          gh issue edit "$NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "$(IFS=,; echo "${keep[*]}")"

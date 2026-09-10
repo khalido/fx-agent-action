@@ -8,7 +8,7 @@ branding:
 # A composite action on purpose: every step is shell you can read in the
 # browser, there is no bundled dist/ to trust, and `gh` and `jq` are already on
 # every GitHub runner. The agent logic lives in fx; the GitHub logic lives in
-# scripts/, four files, all readable.
+# scripts/, a handful of short files, all readable.
 #
 # What the agent may do to your repository is decided by the WORKFLOW's
 # `permissions:` block, not by anything in here. Read-only notes want
@@ -21,7 +21,8 @@ inputs:
     description: >-
       What to ask. The issue or PR thread is appended below it. Leave it
       empty and the text after the trigger phrase in the comment becomes the
-      prompt, which is how "/fx does the sync engine already cover this?" works.
+      prompt, which is how "/fx does the sync engine already cover
+      this?" works.
     required: false
     default: ''
   prompt_file:
@@ -37,17 +38,48 @@ inputs:
     default: zai/glm-5.3-flash
   mode:
     description: >-
-      `auto` (default) lets the comment decide: `/fx <question>` answers in a
-      comment and cannot write, `/fx pr <what to build>` gets the edit and shell
-      tools and opens a pull request. `read` and `write` force one or the other
-      and ignore the verb. In every case read mode DENIES the edit and shell
-      tools outright, so the model never sees them.
+      `auto` (default) lets the comment decide: `/fx <question>` answers
+      in a comment and cannot write, `/fx pr <what to build>` gets the
+      edit and shell tools and opens a pull request. `read` and `write` force
+      one or the other and ignore the verb. In every case read mode DENIES the
+      edit and shell tools outright, so the model never sees them.
     required: false
     default: auto
+  shell:
+    description: >-
+      Give the agent the shell tool in read mode too: `git log` and `git blame`,
+      the one test that covers the area, a repro. Edits stay denied and nothing
+      is committed or opened, but the shell can read the runner's environment,
+      key included, so this does not combine with `allowed_non_write_users`.
+      Write mode always has the shell.
+    required: false
+    default: 'false'
   trigger:
-    description: The phrase that starts a comment aimed at the agent.
+    description: >-
+      The phrase that aims a comment at the agent. Matched as a whole word
+      anywhere in the comment, any case, outside quoted lines; the request is
+      what follows it. Several, comma-separated, are all accepted: `/fx, /agent`.
+      A slash phrase rather than a mention because `@fx` is a real person on
+      GitHub and would be paged; `@fx-agent` works too, if you prefer a mention.
     required: false
     default: /fx
+  allowed_non_write_users:
+    description: >-
+      On issue and pull request events the actor must have write access to
+      this repository, or the run fails. Comma-separated logins to exempt, or
+      `*` for anyone. Only combines with `mode: read` — the run fails
+      otherwise — because the most a stranger should be able to do is be the
+      issue the agent reads.
+    required: false
+    default: ''
+  allowed_bots:
+    description: >-
+      A bot actor is rejected on every event unless listed here — that is
+      what keeps two bots from triggering each other forever. Comma-separated
+      names with or without `[bot]`, or `*`. Scheduled runs are attributed to
+      whoever last edited the cron line; if that was a bot, list it.
+    required: false
+    default: ''
   branch_prefix:
     description: Branch names for pull requests the agent opens.
     required: false
@@ -64,6 +96,14 @@ inputs:
       what a release review or a scheduled job wants.
     required: false
     default: comment
+  comment_key:
+    description: >-
+      A short word that keeps this job's comment apart from another fx job's on
+      the same thread. An issue note (`comment_key: note`) and a `/fx` answer
+      then live in two comments, each updated in place. Letters, digits and
+      dashes.
+    required: false
+    default: ''
   issue_number:
     description: Which issue or PR to read and comment on. Defaults to the one that triggered the run.
     required: false
@@ -81,7 +121,9 @@ inputs:
       Fail the step when the run costs more than this many US dollars. A
       tripwire, not a brake. The real brake is a budget on the AI Gateway key
       itself (`vercel ai-gateway api-keys create --budget 20`), which the
-      gateway enforces with a 402. 0 disables it.
+      gateway enforces with a 402. 0 disables it. A write run that trips it
+      still opens its draft PR: the work is done and throwing it away helps
+      nobody.
     required: false
     default: '1'
   github_token:
@@ -129,6 +171,23 @@ outputs:
 runs:
   using: composite
   steps:
+    # Two checks before anything else, and the run fails if either says no:
+    # write access on issue and PR events, and a human (or listed bot) on every
+    # event. The workflow's `if:` is still worth having — it saves booting a
+    # runner — but it is a filter, and this is the check.
+    - name: Check who asked
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        ACTOR: ${{ github.actor }}
+        EVENT_NAME: ${{ github.event_name }}
+        SENDER_TYPE: ${{ github.event.sender.type }}
+        ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        ALLOWED_BOTS: ${{ inputs.allowed_bots }}
+        MODE: ${{ inputs.mode }}
+        SHELL_TOOL: ${{ inputs.shell }}
+      run: bash "${{ github.action_path }}/scripts/check-actor.sh"
+
     # 👀 on the triggering comment, before anything slow, so a two-minute run
     # doesn't look like nothing happened. Removed again at the end — it is a
     # spinner, not a badge. Copied from shaftoe/pi-coding-agent-action, which
@@ -150,10 +209,13 @@ runs:
     - name: Resolve the fx version
       id: version
       shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
       run: |
         set -euo pipefail
-        tag=$(curl -fsSL https://api.github.com/repos/vercel-labs/fx/releases/latest 2>/dev/null \
-          | jq -r '.tag_name // empty' || true)
+        # Through gh with the job's token: anonymous api.github.com is 60
+        # requests an hour per IP, shared with every other job on the runner.
+        tag=$(gh api repos/vercel-labs/fx/releases/latest --jq '.tag_name // empty' 2>/dev/null || true)
         # actions/cache never overwrites an existing key, so a FIXED fallback
         # would pin whatever binary happened to be cached the day the API was
         # rate-limited, forever. A dated one self-heals the next day.
@@ -173,9 +235,14 @@ runs:
       shell: bash
       run: curl -fsSL https://fx.sh/setup.sh | bash
 
+    # FX_AUTO_UPGRADE=0: fx checks for a newer release on start and can
+    # install it in place. In CI that is a second download of a binary we just
+    # restored from cache, and a run that does not match the version it logged.
     - name: Put fx on PATH
       shell: bash
-      run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      run: |
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        echo "FX_AUTO_UPGRADE=0" >> "$GITHUB_ENV"
 
     - name: Build the prompt
       id: context
@@ -190,6 +257,7 @@ runs:
         INCLUDE_DIFF: ${{ inputs.include_diff }}
         INPUT_TRIGGER: ${{ inputs.trigger }}
         INPUT_MODE: ${{ inputs.mode }}
+        INPUT_SHELL: ${{ inputs.shell }}
       run: bash "${{ github.action_path }}/scripts/build-prompt.sh"
 
     # One config file per run, written globally (~/.fx/settings.json) rather
@@ -206,6 +274,10 @@ runs:
     #          cannot write and the run still exits 0. A question has no
     #          business running commands, and a model with no shell cannot
     #          read the runner's environment back to you.
+    #          With `shell: true`, the shell is ALLOWED by rule instead (no
+    #          automatic review, so no helper-model bill per command) and edit
+    #          stays denied. Commands can still write files, but nothing in
+    #          this mode is committed, so the checkout is scratch paper.
     #  write — `full-access`. The runner is a throwaway container and the real
     #          boundary is the workflow's token scope, so fx's own review layer
     #          only adds latency and a separate billed model request per
@@ -220,21 +292,23 @@ runs:
       shell: bash
       env:
         MODE: ${{ steps.context.outputs.mode }}
+        SHELL_TOOL: ${{ inputs.shell }}
         MODEL: ${{ inputs.model }}
       run: |
         set -euo pipefail
         mkdir -p "$HOME/.fx"
         if [ "$MODE" = "read" ]; then
-          jq -n --arg model "$MODEL" \
+          shell_rule=deny; [ "$SHELL_TOOL" = "true" ] && shell_rule=allow
+          jq -n --arg model "$MODEL" --arg shell "$shell_rule" \
             '{permission_mode:"auto", models:{gateway:$model},
-              permission:{edit:{"*":"deny"}, shell:{"*":"deny"}}}' \
+              permission:{edit:{"*":"deny"}, shell:{"*":$shell}}}' \
             > "$HOME/.fx/settings.json"
         else
           jq -n --arg model "$MODEL" \
             '{permission_mode:"full-access", models:{gateway:$model}}' \
             > "$HOME/.fx/settings.json"
         fi
-        echo "fx configured: $MODE mode, model $MODEL" >&2
+        echo "fx configured: $MODE mode, shell $SHELL_TOOL, model $MODEL" >&2
 
     # What the workspace looked like BEFORE the agent touched it, so the pull
     # request carries only its changes and not a previous step's build output.
@@ -289,12 +363,13 @@ runs:
         path: ${{ runner.temp }}/fx-session.html
         retention-days: 7
 
-    # always(): the run can fail AFTER fx has edited the tree — the cost
-    # tripwire in particular — and skipping this step would throw that work
-    # away with the runner.
+    # !cancelled(), not always(): the run can FAIL after fx has edited the
+    # tree — the cost tripwire in particular — and that work should still
+    # become a PR. A CANCELLED run is different: a newer comment superseded it
+    # mid-edit, and pushing half-finished edits helps nobody.
     - name: Open a pull request
       id: pr
-      if: ${{ always() && steps.context.outputs.mode == 'write' }}
+      if: ${{ !cancelled() && steps.context.outputs.mode == 'write' }}
       shell: bash
       working-directory: ${{ inputs.working_directory }}
       env:
@@ -304,17 +379,18 @@ runs:
         BRANCH_PREFIX: ${{ inputs.branch_prefix }}
       run: bash "${{ github.action_path }}/scripts/open-pr.sh"
 
-    # always(): a failed run is exactly when you want to be told why, and a
-    # bare red X with no comment is the worst outcome for someone who typed
-    # /fx and walked away.
+    # !cancelled(): a failed run is exactly when you want to be told why, and
+    # a bare red X with no comment is the worst outcome for someone who typed
+    # /fx and walked away. A cancelled one was superseded; say nothing.
     - name: Post the answer
       id: comment
-      if: ${{ always() && inputs.post == 'comment' && steps.context.outputs.issue_number != '' }}
+      if: ${{ !cancelled() && inputs.post == 'comment' && steps.context.outputs.issue_number != '' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github_token }}
         ISSUE_NUMBER: ${{ steps.context.outputs.issue_number }}
         RESPONSE_PATH: ${{ steps.run.outputs.response_path }}
+        COMMENT_KEY: ${{ inputs.comment_key }}
         MODEL: ${{ inputs.model }}
         COST: ${{ steps.run.outputs.cost }}
         DURATION: ${{ steps.run.outputs.duration }}

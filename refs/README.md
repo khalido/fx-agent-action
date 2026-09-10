@@ -11,13 +11,14 @@ gh repo clone anthropics/claude-code-action -- --depth 1
 ```
 
 Refresh with `git -C refs/<name> pull` before trusting anything you read here;
-both move weekly.
+all three move weekly. `docs/prior-art.md` is the distilled survey of these and
+a dozen more; start there, and come here for the source.
 
 | Repo | Why it's here |
 |---|---|
-| [shaftoe/pi-coding-agent-action](https://github.com/shaftoe/pi-coding-agent-action) | The closest prior art: a JS action that puts every piece of GitHub logic in the action itself. `packages/pi-platform-github/` is the part worth reading — reactions, comment upsert, author gating. |
-| [anomalyco/opencode](https://github.com/anomalyco/opencode) | The opposite design: `github/action.yml` is a thin composite that installs the binary and runs `opencode github run`, so the GitHub logic lives in the agent. Also the reference for a GitHub App + OIDC token exchange. |
-| [anthropics/claude-code-action](https://github.com/anthropics/claude-code-action) | The most developed of the three. `docs/security.md` is the one to read — actor write-access checks, the hidden-markup list we now strip, why it stops at a branch instead of opening a PR. `docs/solutions.md` is a catalogue of workflows worth stealing. |
+| [shaftoe/pi-coding-agent-action](https://github.com/shaftoe/pi-coding-agent-action) | The closest prior art: a JS action that puts every piece of GitHub logic in the action itself. `packages/pi-platform-github/` is the part worth reading — reactions, comment upsert (two markers), the sanitizer, and the seven GitHub tools it hands the agent. No actor gating inside the action; the README tells the caller to do it in the workflow `if:`. |
+| [anomalyco/opencode](https://github.com/anomalyco/opencode) | The opposite design: `github/action.yml` is a thin composite that installs the binary and runs `opencode github run`, so the GitHub logic lives in the agent — in `packages/opencode/src/cli/cmd/github.handler.ts`, not `github/index.ts`, which is dead code that disagrees with it. Also the reference for a GitHub App + OIDC token exchange. |
+| [anthropics/claude-code-action](https://github.com/anthropics/claude-code-action) | The most developed of the three. `docs/security.md` is the one to read — actor write-access checks (`src/github/validation/{permissions,actor,trigger}.ts` is the code), the hidden-markup list we now strip, why it stops at a branch and a link rather than a PR. `docs/solutions.md` is a catalogue of workflows worth stealing; `agent-approval-check/` is the N-human-approvals gate. |
 | [actions/toolkit](https://github.com/actions/toolkit) | What you'd reach for if this ever becomes a JavaScript action. `AGENTS.md` says when that would be. |
 | [actions/checkout](https://github.com/actions/checkout) | The canonical well-behaved action: input handling, `persist-credentials`, and how a widely-used action documents itself. |
 

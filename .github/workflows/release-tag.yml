@@ -1,8 +1,9 @@
-# Publishing a release moves the major tag to it, because `uses:
+# Publishing a release moves the major and minor tags to it, because `uses:
 # khalido/fx-agent-action@v1` is what the README tells people to write and a
-# tag they have to bump by hand is a tag they never bump.
+# tag they have to bump by hand is a tag they never bump. GitHub's own guidance
+# is the same: keep `v1` and `v1.1` current to the latest appropriate commit.
 #
-# v1.2.3 published → v1 now points at v1.2.3. A prerelease moves nothing.
+# v1.2.3 published → v1 and v1.2 now point at v1.2.3. A prerelease moves nothing.
 
 name: move the major tag
 
@@ -34,9 +35,12 @@ jobs:
             *) echo "::error::'$TAG' is not vMAJOR.MINOR.PATCH; not moving anything." >&2; exit 1 ;;
           esac
           major="${TAG%%.*}"
+          minor="${TAG%.*}"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -fa "$major" -m "$major → $TAG" "$TAG"
-          git push -f origin "$major"
-          echo "$major now points at $TAG" >> "$GITHUB_STEP_SUMMARY"
+          for t in "$major" "$minor"; do
+            git tag -fa "$t" -m "$t → $TAG" "$TAG"
+            git push -f origin "$t"
+            echo "$t now points at $TAG" >> "$GITHUB_STEP_SUMMARY"
+          done

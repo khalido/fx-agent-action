@@ -1,0 +1,145 @@
+# The one file to copy into a repo. Two jobs:
+#
+#   an issue is opened or edited  → one short note from something that has read
+#                                   the code and its history, refreshed in place
+#                                   when the issue changes
+#   /fx <question>                → an answer, read-only, on any issue or PR
+#   /fx pr <what to build>        → a draft pull request
+#
+# Copy it to .github/workflows/fx.yml, add the AI_GATEWAY_API_KEY secret, done.
+# This repo runs the same file on itself with `uses: ./`; CI keeps the two
+# copies identical.
+#
+# No automatic PR review here on purpose. A PR you wrote with a stronger agent
+# does not need this one's opinion, and a PR fx wrote should not be graded by
+# fx. `/fx is this ready?` on a PR still works: the diff is in the prompt.
+
+name: fx
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  # Per job as well as per issue, so a /fx comment does not cancel a note.
+  group: fx-${{ github.workflow }}-${{ github.job }}-${{ github.event.issue.number }}
+  cancel-in-progress: true   # a burst of edits: the last one wins
+
+jobs:
+  # The note. Fixed prompt, one comment per issue that the action finds by its
+  # marker and rewrites, so an edited issue gets a fresh note in the same
+  # place. It has the shell (git log, git blame, the one relevant test) but no
+  # edit tools, and nothing it does to the checkout is kept.
+  #
+  # Because of the shell, only issues from people with write access get a
+  # note: a shell can read the runner's environment, key included, so a
+  # stranger's issue must not drive it. The `if:` skips the rest without
+  # booting a runner; the action checks again.
+  note:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # The agent holds no GitHub token, so give it the issue list as a file
+      # and it can say "duplicates #98" by reading it.
+      - name: Snapshot the issue list
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 300 \
+            --json number,title,state,labels,createdAt > issues.json
+
+      - uses: ./
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+        with:
+          mode: read
+          shell: true
+          comment_key: note
+          # Or point `prompt_file` at a file in your repo and edit the agent
+          # without touching YAML; prompts/issue-notes.md in the action's repo
+          # is the same text. Web search needs no key here, and a limit stated
+          # in the prompt ("last six months", "news.ycombinator.com") reaches
+          # Exa as real parameters: start_published_date, include_domains.
+          # The session artifact shows the exact call.
+          prompt: |
+            You leave one short note on a GitHub issue, for whoever works on it
+            next: a person, or an agent they point at it. You can only read
+            files. Under 200 words.
+
+            Work in this order, and stop early once the issue is clear:
+            1. Orient: AGENTS.md or CLAUDE.md if present, then the README's
+               layout. Do not read the whole repo.
+            2. The issue: what does the author actually want, and is it a bug,
+               a feature, or a question? If the intent is ambiguous, that is
+               your most useful finding.
+            3. Grep for the names and paths the issue mentions; read the two or
+               three files that matter. `git log -S` and `git blame` on those
+               lines say when and why they changed. `issues.json` in the
+               workspace lists this repo's issues.
+            4. Only if the issue is about adopting or changing a library, tool
+               or approach: one web search, restricted to the last six months,
+               for what has changed or what people hit with it. Prefer
+               news.ycombinator.com and the project's own site. Skip this for
+               a bug in this repo's code.
+
+            Then write these lines, in this order, dropping any you have
+            nothing for:
+            - **Where:** the files and functions this touches, by path.
+            - **Already here:** a helper, page or decision that covers part of
+              this, or a rule in the repo's guide that it fights. Quote it.
+            - **Related:** issues in issues.json this duplicates or depends
+              on, by number.
+            - **Likely cause:** for a bug, where it most plausibly lives and
+              what would confirm it: a test, a log line, a command.
+            - **Before starting:** the one question the author must answer,
+              if there is one.
+            - **Check with:** the test file or command that covers this area,
+              and whether it passes today if running it is quick.
+            - **Outside:** only when step 4 ran, what the last six months say,
+              with links.
+
+            Facts from the code, not plans. Do not propose a design, estimate
+            effort, or write code. Guessing a path is worse than saying you did
+            not find one. If you found nothing useful, say so in one line.
+
+  # Questions and `/fx pr`, on issues and pull requests alike. The action checks
+  # that the commenter has write access and is not a bot; the `if:` is the
+  # cheap version of the same filter, so a stranger's `/fx` on a public repo
+  # never boots a runner, let alone bills a model call.
+  comment:
+    if: >-
+      github.event_name == 'issue_comment' &&
+      contains(github.event.comment.body, '/fx') &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # `contents: write` is what lets `/fx pr` push a branch. It also lets a job
+    # push to your default branch; branch protection is what stops that.
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+        with:
+          shell: true
+          max_steps: '60'

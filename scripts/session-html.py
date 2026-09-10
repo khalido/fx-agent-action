@@ -75,13 +75,22 @@ def render(session, meta):
                 if not isinstance(call, dict):
                     continue
                 result = results.get(call.get('id')) or {}
-                status = result.get('status', '?')
-                css = ' class="fail"' if status != 'success' else ''
+                # Web search on the gateway is a provider-native tool: Exa runs
+                # it server-side, fx records the call with its arguments (query,
+                # include_domains, start_published_date) and the raw result on
+                # the call itself, and there is no tool_results entry.
+                if call.get('provider_native') or call.get('provider_result') is not None:
+                    status = 'provider'
+                    body = call.get('provider_result')
+                else:
+                    status = result.get('status', '?')
+                    body = result.get('output') or result.get('preview')
+                css = ' class="fail"' if status not in ('success', 'provider') else ''
                 out.append('<div class="turn"><div class="who">Tool</div>')
                 out.append(f'<p class="tool"><b>{esc(call.get("name"))}</b> '
                            f'<span{css}>{esc(status)}</span></p>')
                 out.append(block('arguments', call.get('arguments_json')))
-                out.append(block('result', result.get('output') or result.get('preview')))
+                out.append(block('result', body))
                 out.append('</div>')
 
         if turn.get('assistant'):

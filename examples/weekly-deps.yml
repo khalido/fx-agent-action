@@ -18,6 +18,10 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: fx-weekly-deps
+  cancel-in-progress: false
+
 jobs:
   bump:
     runs-on: ubuntu-latest

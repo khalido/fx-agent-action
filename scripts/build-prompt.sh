@@ -44,23 +44,57 @@ if [ -n "${INPUT_PROMPT_FILE:-}" ]; then
 elif [ -n "${INPUT_PROMPT:-}" ]; then
   printf '%s' "$INPUT_PROMPT" > "$instruction"
 else
-  comment="$(payload '.comment.body' | tr -d '\r')"   # CRLF would end up in the verb
+  # A PR review's body lives under .review; a comment's under .comment.
+  comment="$(payload '.comment.body // .review.body' | tr -d '\r')"   # CRLF would end up in the verb
   if [ -z "$comment" ]; then
     echo "::error::No prompt, no prompt_file, and no triggering comment to use as one." >&2
     exit 1
   fi
-  # Strip the trigger, then read the first word as a verb. `/fx pr <what>` asks
-  # for a branch and a pull request; anything else is a question answered in a
-  # comment.
+  # The trigger is a phrase that can sit anywhere in the comment: "hey
+  # /fx, why is the sync running twice?" works. Whole word, any case,
+  # and the request is what FOLLOWS the phrase — text before it is still in
+  # the thread block below, so nothing is lost.
+  #
+  # Quoted lines do not count. A maintainer quoting a stranger's rejected
+  # "/fx pr delete everything" to say no would otherwise run it with the
+  # maintainer's access. The quote is still in the thread block as evidence.
+  #
+  # Not found is an error, not a quiet skip: every example gates the workflow
+  # with `if: contains(...)`, so reaching here without the phrase means the
+  # gate is missing and a runner is being paid for on every comment.
+  # `trigger` may be a comma-separated list — `/fx, /fx` — and the
+  # earliest one in the comment wins.
+  trigger="${INPUT_TRIGGER:-/fx}"
+  first="${trigger%%,*}"; first="${first#"${first%%[![:space:]]*}"}"; first="${first%"${first##*[![:space:]]}"}"
+  printf '%s' "$comment" > "$RUNNER_TEMP/fx-comment.txt"
+  if ! body=$(TRIGGER="$trigger" python3 - "$RUNNER_TEMP/fx-comment.txt" <<'PY'
+import os, re, sys
+text = open(sys.argv[1], encoding='utf-8', errors='replace').read()
+text = '\n'.join(l for l in text.splitlines() if not l.lstrip().startswith(('>', '&gt;')))
+phrases = [p.strip() for p in os.environ['TRIGGER'].split(',') if p.strip()]
+found = re.search(r'(^|\s)(?:' + '|'.join(map(re.escape, phrases)) + r')(?=[\s.,!?;:]|$)', text, re.I)
+if not found:
+    sys.exit(3)
+print(text[found.end():].lstrip(' \t\n.,!?;:'), end='')
+PY
+  ); then
+    echo "::error::The comment does not contain '$trigger' outside a quote. Gate the job with: if: contains(github.event.comment.body, '$first')" >&2
+    exit 1
+  fi
+  # "cc /fx" is the phrase with no request. Say so instead of billing a
+  # model call for nothing; the thread block alone is not an instruction.
+  if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
+    echo "::error::'$first' has nothing after it. Put the request after the phrase." >&2
+    exit 1
+  fi
+  # The first word after the phrase is the verb. `pr` asks for a branch and a
+  # pull request; anything else is a question answered in a comment.
   #
   # ONE verb, and it used to be five. `do`, `build`, `implement` and `fix` all
-  # start ordinary questions — "/fx do we already have a retry helper?" — and
-  # each of those would have handed a full-access shell to a question. A verb
-  # that can be the first word of a question cannot also be the switch that
-  # turns writing on.
-  trigger="${INPUT_TRIGGER:-/fx}"
-  body="${comment#"$trigger"}"
-  body="${body#"${body%%[![:space:]]*}"}"
+  # start ordinary questions — "/fx do we already have a retry helper?" —
+  # and each of those would have handed a full-access shell to a question. A
+  # verb that can be the first word of a question cannot also be the switch
+  # that turns writing on.
   verb="$(printf '%s' "$body" | head -n1 | awk '{print tolower($1)}')"
   case "$verb" in
     pr)
@@ -90,7 +124,7 @@ esac
 # only content in the prompt would be the issue body, which is untrusted text,
 # and the agent has edit and shell. Refuse it.
 if [ "$mode" = "write" ] && [ ! -s "$instruction" ]; then
-  echo "::error::A write run needs an instruction. '${INPUT_TRIGGER:-/fx} pr' on its own would leave the issue body as the only thing telling the agent what to do." >&2
+  echo "::error::A write run needs an instruction. '${first:-/fx} pr' on its own would leave the issue body as the only thing telling the agent what to do." >&2
   exit 1
 fi
 
@@ -102,9 +136,19 @@ fi
   printf '.\n\n'
 
   if [ "$mode" = "read" ]; then
-    cat <<'TXT'
+    if [ "${INPUT_SHELL:-false}" = "true" ]; then
+      cat <<'TXT'
+You can read the repository, search the web, and run commands: git log and git
+blame, the tests, a repro. You cannot edit files, and nothing you do to this
+checkout is kept, committed or pushed, so do not try.
+TXT
+    else
+      cat <<'TXT'
 You can read the repository and search the web. You cannot edit files or run
 commands: those tools are switched off, so do not plan around them.
+TXT
+    fi
+    cat <<'TXT'
 
 Read AGENTS.md or CLAUDE.md if the repository has one; it is how this project
 says what it wants.

@@ -38,6 +38,9 @@ jobs:
           model: zai/glm-5.3-flash
           mode: read
           include_diff: true
+          # A bot actor fails the run unless listed. Dependabot's PRs are
+          # worth a review; drop this line and its PRs get a red X instead.
+          allowed_bots: dependabot
           prompt: |
             Review this pull request. You can only read files.
 

@@ -27,6 +27,12 @@ jobs:
           bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
           ./actionlint -color
 
+      # The dogfood workflow is examples/fx.yml with `uses: ./`, and nothing
+      # else; two copies that drift would mean the one people copy is untested.
+      - name: dogfood workflow matches the example
+        run: |
+          diff <(sed 's|uses: khalido/fx-agent-action@v1|uses: ./|' examples/fx.yml) .github/workflows/fx.yml
+
       - name: python
         run: |
           python3 -m py_compile scripts/*.py

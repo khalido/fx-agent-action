@@ -21,7 +21,7 @@ import re
 # hand-kept list. A list goes stale in the direction that matters: it names
 # things that are not set (so it reads as protection it is not providing) and
 # misses the one the caller added last week.
-SECRET_NAME = re.compile(r'(API_KEY|_TOKEN|_SECRET|_PASSWORD)$')
+SECRET_NAME = re.compile(r'(_KEY|_TOKEN|_SECRET|_PASSWORD)$')   # covers API_KEY, PRIVATE_KEY, ACCESS_KEY
 # Long enough that a match is the secret and not a coincidence.
 MIN_LENGTH = 16
 
