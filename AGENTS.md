@@ -170,6 +170,20 @@ by a newer comment, should post nothing.
 is the human-oversight step — the same reason `claude-code-action` stops at a
 branch and makes a person click the button.
 
+**fx never holds a GitHub token, and the action checks its own files after
+the run.** The `Run fx` step has no `GH_TOKEN`, the examples check out with
+`persist-credentials: false`, and only `open-pr.sh` pushes, to a branch, with
+the token in the URL. That leaves one route to the default branch in write
+mode: fx, with a full shell, editing `open-pr.sh` under `_actions/` before it
+runs. So `Note the working tree` also hashes the action's `action.yml` and
+`scripts/` into a step output, which lives in the runner's memory, and an
+inline step after fx recomputes it and fails the run on a mismatch; the PR
+and comment steps are gated on it. Inline because a script would be read from
+the directory being checked. Branch protection is still the real answer; this
+is for the free-plan private repo that cannot have it. It does not defend
+against an agent with `sudo` replacing `sha256sum`, and nothing on the runner
+could.
+
 "What fx touched" is the difference between two **tree objects**, written to a
 scratch index before and after the run. Diffing `git status` text instead looks
 equivalent and is not, in two ways that both lose work silently: ` M foo.txt`
@@ -263,8 +277,10 @@ There is no unit test worth writing for 300 lines of glue. Test it the way it
 runs. The repo dogfoods itself: `.github/workflows/fx.yml` is `examples/fx.yml`
 with `uses: ./`, so `/fx` on an issue here runs the checked-out action, and
 `check.yml` fails if the two files drift. One caveat of `uses: ./` in write
-mode: fx edits the very scripts that run after it, so a `/fx pr` that touches
-`scripts/open-pr.sh` runs the edited version. Read that PR's diff first.
+mode: the action's scripts are the checkout, and the integrity check refuses
+to open a PR when `action.yml` or `scripts/` changed during the run. A
+`/fx pr` here that touches those fails on purpose; changes to the action's
+own code come from a person or a stronger agent, not from fx on itself.
 
 Locally:
 

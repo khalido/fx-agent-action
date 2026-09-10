@@ -189,11 +189,15 @@ don't want the ability to mint tokens into your repo.
   The comment that summons the agent is its instruction. That is why the
   write-access check exists.
 - **The workflow's `permissions:` block decides what the agent can do**, not
-  this action. `contents: write` can push to your default branch; branch
-  protection is what makes "at most a draft PR" true. A private repo on the
-  free plan cannot have branch protection, so there `/fx pr` means trusting
-  everyone with write access completely. If that is not true of your repo,
-  do not wire `pr`: `mode: read` and `contents: read`.
+  this action. `contents: write` can push to your default branch, and branch
+  protection is what makes "at most a draft PR" true whatever the agent does.
+  The action closes the routes it knows about on its own: fx's process never
+  holds a GitHub token, the checkout has no credentials, the push goes to a
+  branch, and a run that finds fx has edited the action's own scripts stops
+  before the step that pushes. A private repo on the free plan cannot have
+  branch protection, so there you are trusting those guards and everyone
+  with write access. If that is not true of your repo, do not wire `pr`:
+  `mode: read` and `contents: read`.
 - **Read mode can reach the web.** Search and fetch are on, so an injected
   thread that steers the agent could read a file and send it out in a URL.
   The write-access check is the control; only people who could already read

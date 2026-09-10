@@ -374,12 +374,24 @@ runs:
     # A tree object, written to a scratch index so the real one is untouched —
     # `git status` text cannot tell "already dirty" from "dirty in the same
     # way", and collapses an untracked directory to a single line.
+    # Two snapshots before fx gets a shell. The tree, so the PR carries only
+    # what fx touched. And a fingerprint of this action's own action.yml and
+    # scripts/, kept as a step output — already in the runner's memory, out of
+    # reach of anything fx does to the disk — because the steps after this one
+    # run scripts from that directory with a token that can push. An agent
+    # talked into editing open-pr.sh could otherwise push to the default
+    # branch, and on a free-plan private repo branch protection is not there
+    # to stop it.
     - name: Note the working tree
+      id: tree
       if: ${{ steps.context.outputs.mode == 'write' }}
       shell: bash
       working-directory: ${{ inputs.working_directory }}
       run: |
         set -euo pipefail
+        sha=$(find "$GITHUB_ACTION_PATH/action.yml" "$GITHUB_ACTION_PATH/scripts" -type f -print0 \
+          | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-64)
+        echo "action_sha=$sha" >> "$GITHUB_OUTPUT"
         cd "$(git rev-parse --show-toplevel)"
         export GIT_INDEX_FILE="$RUNNER_TEMP/fx-index-before"
         git add -A -- .
@@ -394,13 +406,31 @@ runs:
         MAX_COST: ${{ inputs.max_cost }}
       run: bash "${{ github.action_path }}/scripts/run-fx.sh"
 
+    # Inline, not a script: a script here would be read from the directory it
+    # is checking. On a mismatch the run fails before any step that holds the
+    # token runs a file from that directory.
+    - name: Check the action's own files
+      id: integrity
+      if: ${{ !cancelled() && steps.context.outputs.mode == 'write' }}
+      shell: bash
+      env:
+        BEFORE: ${{ steps.tree.outputs.action_sha }}
+      run: |
+        set -euo pipefail
+        after=$(find "$GITHUB_ACTION_PATH/action.yml" "$GITHUB_ACTION_PATH/scripts" -type f -print0 \
+          | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-64)
+        if [ -z "$BEFORE" ] || [ "$after" != "$BEFORE" ]; then
+          echo "::error::fx changed this action's own action.yml or scripts/ during the run. Refusing to open a PR or post with them; read the session artifact." >&2
+          exit 1
+        fi
+
     # The session as one HTML page, on the run. Both prior arts ship something
     # like this and it is the difference between "the note is wrong" and
     # knowing why. Rendered from `fx session <id> --json`, secrets stripped —
     # a tool result can quote a file, and an artifact leaves the runner.
     - name: Render the session
       id: session
-      if: ${{ always() && inputs.session_artifact == 'true' && steps.run.outputs.session_id != '' }}
+      if: ${{ always() && steps.integrity.outcome != 'failure' && inputs.session_artifact == 'true' && steps.run.outputs.session_id != '' }}
       shell: bash
       continue-on-error: true
       working-directory: ${{ inputs.working_directory }}
@@ -427,7 +457,7 @@ runs:
     # mid-edit, and pushing half-finished edits helps nobody.
     - name: Open a pull request
       id: pr
-      if: ${{ !cancelled() && steps.context.outputs.mode == 'write' }}
+      if: ${{ !cancelled() && steps.context.outputs.mode == 'write' && steps.integrity.outcome == 'success' }}
       shell: bash
       working-directory: ${{ inputs.working_directory }}
       env:
@@ -442,7 +472,7 @@ runs:
     # /fx and walked away. A cancelled one was superseded; say nothing.
     - name: Post the answer
       id: comment
-      if: ${{ !cancelled() && inputs.post == 'comment' && steps.context.outputs.issue_number != '' }}
+      if: ${{ !cancelled() && steps.integrity.outcome != 'failure' && inputs.post == 'comment' && steps.context.outputs.issue_number != '' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github_token }}

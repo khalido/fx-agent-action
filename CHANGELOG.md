@@ -42,6 +42,11 @@ as a break.
   the tests, with edits denied and nothing committed. Refused together with
   `allowed_non_write_users`, and with an allowed bot on an issue or PR event,
   because a shell can read the key and the bot's text is the instruction.
+- A write run that finds fx has changed the action's own `action.yml` or
+  `scripts/` stops before opening a PR or posting, since those scripts run
+  next with a token that can push. fx's own process never holds that token.
+  Branch protection is still the answer where it exists; this is for the
+  free-plan private repo that cannot have it.
 - A cancelled run, one superseded by a newer comment mid-edit, no longer
   pushes its half-finished edits or posts a "failed" comment. A failed run
   still does both, on purpose.
