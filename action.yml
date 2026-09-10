@@ -122,7 +122,7 @@ inputs:
     description: >-
       Fail the step when the run costs more than this many US dollars. A
       tripwire, not a brake. The real brake is a budget on the AI Gateway key
-      itself (`vercel ai-gateway api-keys create --budget 20`), which the
+      itself (`vercel ai-gateway api-keys create --limit 10`), which the
       gateway enforces with a 402. 0 disables it. A write run that trips it
       still opens its draft PR: the work is done and throwing it away helps
       nobody.

@@ -122,7 +122,7 @@ in write mode its shell tool is a child process and inherits the environment —
 measured, an agent-run `test -n "$AI_GATEWAY_API_KEY"` reports PRESENT. GitHub
 masks secrets in logs, not in API bodies or artifacts. Hence `redact.py`, on
 both the answer and the session HTML. It is a backstop, not the control: the
-control is a gateway key with its own budget, so a leak costs $20 and one
+control is a gateway key with its own budget, so a leak costs the budget and one
 rotation.
 
 **Hidden markup is stripped from the untrusted block only.** HTML comments,

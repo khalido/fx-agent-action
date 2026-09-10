@@ -31,7 +31,7 @@ jobs:
 ```
 
 ```bash
-vercel ai-gateway api-keys create --name github-actions --budget 20 --refresh-period monthly
+vercel ai-gateway api-keys create --name github-actions --limit 10 --refresh-period monthly
 gh secret set AI_GATEWAY_API_KEY
 ```
 
