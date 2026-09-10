@@ -147,3 +147,5 @@ jobs:
         with:
           shell: true
           max_steps: '60'
+          # Questions on the cheap default; code on something stronger.
+          # pr_model: anthropic/claude-sonnet-5

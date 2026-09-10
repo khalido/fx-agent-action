@@ -38,6 +38,13 @@ inputs:
     description: Any AI Gateway model id, e.g. `zai/glm-5.3-flash`, `anthropic/claude-sonnet-5`.
     required: false
     default: zai/glm-5.3-flash
+  pr_model:
+    description: >-
+      The model for write runs, the ones that end in a pull request, when it
+      should differ from `model`. Writing code pays for a stronger model in a
+      way a note does not. Empty means the same model for both.
+    required: false
+    default: ''
   mode:
     description: >-
       `auto` (default) lets the comment decide: `/fx <question>` answers
@@ -321,17 +328,22 @@ runs:
     # stored and echoed — so the read-back proves the file parsed, not that the
     # names are the right ones; `edit` and `shell` are the two measured to bind.
     - name: Configure fx
+      id: configure
       shell: bash
       env:
         MODE: ${{ steps.context.outputs.mode }}
         SHELL_TOOL: ${{ inputs.shell }}
         MODEL: ${{ inputs.model }}
+        PR_MODEL: ${{ inputs.pr_model }}
         MAX_STEPS: ${{ inputs.max_steps }}
         EFFORT: ${{ inputs.effort }}
       run: |
         set -euo pipefail
         mkdir -p "$HOME/.fx"
         steps="${MAX_STEPS:-30}"
+        # One rule for which model runs: write mode takes pr_model when set.
+        [ "$MODE" = "write" ] && [ -n "$PR_MODEL" ] && MODEL="$PR_MODEL"
+        echo "model=$MODEL" >> "$GITHUB_OUTPUT"
         common=$(jq -n --arg model "$MODEL" --argjson steps "$steps" --arg effort "$EFFORT" \
           '{models:{gateway:$model}, max_agent_steps:$steps, max_tool_result_bytes:65536, context:true}
            + (if $effort != "" then {effort:$effort} else {} end)')
@@ -394,7 +406,7 @@ runs:
       working-directory: ${{ inputs.working_directory }}
       env:
         SESSION_META: >-
-          ${{ inputs.model }} · ${{ steps.run.outputs.steps }} steps ·
+          ${{ steps.configure.outputs.model }} · ${{ steps.run.outputs.steps }} steps ·
           ${{ steps.run.outputs.duration }}s · fx ${{ steps.run.outputs.fx_version }}
       run: |
         python3 "${{ github.action_path }}/scripts/session-html.py" \
@@ -437,7 +449,7 @@ runs:
         ISSUE_NUMBER: ${{ steps.context.outputs.issue_number }}
         RESPONSE_PATH: ${{ steps.run.outputs.response_path }}
         COMMENT_KEY: ${{ inputs.comment_key }}
-        MODEL: ${{ inputs.model }}
+        MODEL: ${{ steps.configure.outputs.model }}
         COST: ${{ steps.pr.outputs.cost || steps.run.outputs.cost }}
         DURATION: ${{ steps.run.outputs.duration }}
         IN_TOKENS: ${{ steps.run.outputs.input_tokens }}

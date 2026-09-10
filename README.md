@@ -121,6 +121,7 @@ All optional.
 | `prompt` | the comment | What to ask. The thread is appended below it. |
 | `prompt_file` | | Instructions in a file in your repo. Wins over `prompt` when it exists. |
 | `model` | `zai/glm-5.3-flash` | Any [AI Gateway model id](https://vercel.com/ai-gateway/models). |
+| `pr_model` | same as `model` | A stronger model for `pr` runs only. |
 | `mode` | `auto` | The comment decides. `read` and `write` force it. |
 | `shell` | `false` | Shell in read mode too. Nothing is committed. |
 | `trigger` | `/fx` | Whole word, anywhere in the comment. Comma-separate several. |

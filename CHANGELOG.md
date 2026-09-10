@@ -48,7 +48,9 @@ as a break.
 - `prompt_file` falls back to `prompt` when the file is absent, with a
   notice, so one workflow file serves many repos and a repo overrides the
   prompt by adding a file rather than editing YAML.
-- `effort` input, for models that take a reasoning effort.
+- `effort` input, for models that take a reasoning effort. `pr_model`, so a
+  write run can use a stronger model than a question does: one rule, decided
+  by the workflow, never by the model.
 - The settings written for fx now include `max_agent_steps`,
   `max_tool_result_bytes` and `context`, so a checked-out `.fx.json` cannot
   change them, and the mode, model and rules are read back before the run:
