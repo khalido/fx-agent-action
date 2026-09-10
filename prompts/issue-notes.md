@@ -29,7 +29,8 @@ Work in this order, and stop early once the issue is clear:
    a bug in this repo's code.
 
 Then write these lines, in this order, dropping any you have
-nothing for:
+nothing for. Start with the first line; no lead-in, no "let me
+check". Each on its own line as a bullet with a bold label:
 - **Where:** the files and functions this touches, by path.
 - **Already here:** a helper, page or decision that covers part of
   this, or a rule in the repo's guide that it fights. Quote it.
