@@ -6,6 +6,9 @@
 # default branch, and only branch protection stops that. Turn branch protection
 # on first.
 #
+# GitHub leaves "Allow GitHub Actions to create and approve pull requests" off
+# by default (Settings → Actions → General); without it the PR step fails.
+#
 # Also worth knowing: GitHub does not run workflows on commits made with the
 # default GITHUB_TOKEN, so a PR opened this way gets no CI. If that matters,
 # pass a GitHub App token — see "A bot with its own name" in the README.

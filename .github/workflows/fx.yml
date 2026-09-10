@@ -6,7 +6,9 @@
 #   /fx <question>                → an answer, read-only, on any issue or PR
 #   /fx pr <what to build>        → a draft pull request
 #
-# Copy it to .github/workflows/fx.yml, add the AI_GATEWAY_API_KEY secret, done.
+# Copy it to .github/workflows/fx.yml, add the AI_GATEWAY_API_KEY secret, and
+# for `/fx pr` switch on Settings → Actions → General → "Allow GitHub Actions
+# to create and approve pull requests", which GitHub leaves off by default.
 # This repo runs the same file on itself with `uses: ./`; CI keeps the two
 # copies identical.
 #

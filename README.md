@@ -73,9 +73,16 @@ nothing committed.
 
 **`/fx pr add a retry to the API client`** gets the edit and shell
 tools as well. What it changed becomes a branch and a **draft** pull request,
-linked from the comment. This needs `contents: write` and branch protection on
-your default branch; [`examples/build-it.yml`](examples/build-it.yml) is the
-version to copy.
+linked from the comment. This needs `contents: write`, branch protection on
+your default branch, and one repo setting GitHub leaves off by default:
+Settings → Actions → General → "Allow GitHub Actions to create and approve
+pull requests". Without it the push succeeds and the PR step fails. From the
+CLI:
+
+```bash
+gh api -X PUT repos/OWNER/REPO/actions/permissions/workflow \
+  -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
+```
 
 The phrase can sit anywhere in the comment, any case, but not inside a quoted
 line. The request is what follows it. `pr` is the only word that turns writing
