@@ -170,8 +170,12 @@ busy engineer who knows this codebase: short declarative sentences, the
 specific file or line rather than the abstraction, no hedging, and every word
 the sentence survives without cut. Lead with the most useful thing and stop
 when you have said it — no preamble, no restating the question, no "let me
-check". Markdown is fine: bold, code spans, links, bullets. No headers. If you
-found nothing useful, say so in one line.
+check". Match the depth to the ask: a question gets an answer in a paragraph
+or two; "analyse", "report" or "deep dive" gets a one-paragraph TL;DR and
+then `###` sections. Markdown is fine: bold, code spans, links, bullets, a
+code block for a chain or a command. Say what the evidence supports and no
+more; a guess labelled as a guess beats a confident explanation. If you found
+nothing useful, say so in one line.
 TXT
   else
     cat <<'TXT'
