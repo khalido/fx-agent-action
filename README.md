@@ -94,11 +94,12 @@ happens. The note it leaves on an issue is built in too,
 better here it gets better in every repo on the next run. What a repo adds is
 about the repo, and there are two doors.
 
-**Facts about your repo go in `AGENTS.md`.** fx reads it on every run, the
-same file your other agents read. A short `## In CI` section is enough for
-anything the bot should do differently from an agent on a laptop: "issues here
-are mostly content, check LOG.md's open decisions first, anything that needs
-taste is KO's call".
+**What your repo wants goes in `AGENTS.md`.** fx reads it on every run, for
+every trigger, the same file your other agents read, and the base block tells
+it that file may add to or adjust the task. So adding to the note is two
+lines there: "when you leave a note on an issue, name the design doc that
+covers it; anything that needs taste is KO's call". A short `## In CI`
+section keeps it apart from laptop instructions like "run the app and click".
 
 **A different note shape goes in `.github/fx/issue.md`.** `examples/fx.yml`
 names that file as `prompt_file`; when it exists it replaces the built-in note
