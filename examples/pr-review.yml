@@ -35,7 +35,7 @@ jobs:
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
         with:
-          model: zai/glm-5.3-flash
+          model: deepseek/deepseek-v4.1-flash
           mode: read
           include_diff: true
           # A bot actor fails the run unless listed. Dependabot's PRs are

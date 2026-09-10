@@ -35,9 +35,9 @@ inputs:
     required: false
     default: ''
   model:
-    description: Any AI Gateway model id, e.g. `zai/glm-5.3-flash`, `anthropic/claude-sonnet-5`.
+    description: Any AI Gateway model id, e.g. `deepseek/deepseek-v4.1-flash`, `zai/glm-5.3-flash`, `anthropic/claude-sonnet-5`.
     required: false
-    default: zai/glm-5.3-flash
+    default: deepseek/deepseek-v4.1-flash
   pr_model:
     description: >-
       The model for write runs, the ones that end in a pull request, when it

@@ -146,6 +146,5 @@ jobs:
         with:
           shell: true
           max_steps: '60'
-          # Questions on the cheap default; code on something stronger. This
-          # is the beta id; drop `-beta` when the gateway lists the stable one.
-          pr_model: deepseek/deepseek-v4.1-flash-beta
+          # To put code on a stronger model than questions, uncomment:
+          # pr_model: anthropic/claude-sonnet-5

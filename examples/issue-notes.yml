@@ -48,7 +48,7 @@ jobs:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
         with:
           prompt_file: .github/fx/issue-notes.md
-          model: zai/glm-5.3-flash
+          model: deepseek/deepseek-v4.1-flash
           mode: read
           # Only needed with `issues: opened` switched on above: the actor is
           # then whoever opened the issue, and anyone can. Safe here because

@@ -53,6 +53,10 @@ as a break.
 - `prompt_file` falls back to `prompt` when the file is absent, with a
   notice, so one workflow file serves many repos and a repo overrides the
   prompt by adding a file rather than editing YAML.
+- The default model is `deepseek/deepseek-v4.1-flash`: the same price per
+  token as `zai/glm-5.3-flash` within a fraction of a cent and better on
+  every measure that mattered here. It works harder per run, so a note costs
+  more than it did on GLM. `model` overrides it in one line.
 - `effort` input, for models that take a reasoning effort. `pr_model`, so a
   write run can use a stronger model than a question does: one rule, decided
   by the workflow, never by the model.
