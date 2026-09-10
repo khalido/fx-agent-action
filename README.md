@@ -127,6 +127,13 @@ there: "when you leave a note on an issue, name the design doc that covers it;
 anything that needs taste is KO's call". A short `## In CI` section keeps it
 apart from laptop instructions like "run the app and click".
 
+**Skills.** The action ships its own under [`skills/`](skills/), today
+`compare-models`, which checks a model's id and price on the gateway, what
+people hit with it, and whether it fits this repo's jobs, and copies them into
+fx's skill folder on the runner for that run only. Your repo's own skill
+folders are seen as they are; `.github/fx/skills/` is copied the same way for
+skills only this agent should have. `skills: false` turns the copy off.
+
 **A different note goes in `.github/fx/issue.md`.** Set
 `prompt_file: .github/fx/issue.md` on the note job and, when the file exists,
 it replaces the built-in note whole. Start from the built-in text. `prompt`
@@ -155,6 +162,7 @@ All optional.
 | `pr_model` | same as `model` | A stronger model for `pr` runs only. |
 | `mode` | `auto` | The comment decides. `read` and `write` force it. |
 | `shell` | `false` | Shell and edits in read mode too, thrown away. Nothing is committed. |
+| `skills` | `true` | Copy the action's skills and the repo's `.github/fx/skills/` to fx on the runner. |
 | `trigger` | `/fx` | Whole word, anywhere in the comment. Comma-separate several. |
 | `allowed_non_write_users` | | Logins exempt from the write check, or `*`. |
 | `allowed_bots` | | Bots allowed to trigger, with or without `[bot]`, or `*`. |
@@ -198,6 +206,17 @@ key its own budget. The [guide](docs/guide.md#before-you-turn-it-on) has the
 full list, including what a private repo on the free plan, which cannot have
 [branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches),
 is trusting.
+
+## Why fx
+
+I tried the bigger agents in this seat first. claude-code-action and
+opencode's action are good, and heavy: slow to start, an app or a service in
+the middle, more than an issue note needs. shaftoe's pi action was closer,
+and this one took its comment marker and its 👀, but pi wants extensions for
+the basics, and every extension I picked up did a billion things when I
+wanted one. I started building my own. Then fx: skills, MCP, web search and
+fetch, sessions you can read afterwards, one binary, none of it in the way.
+This action is the GitHub plumbing around it and nothing else.
 
 ## The rest
 

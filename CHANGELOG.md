@@ -69,6 +69,13 @@ as a break.
   token as `zai/glm-5.3-flash` within a fraction of a cent and better on
   every measure that mattered here. It works harder per run, so a note costs
   more than it did on GLM. `model` overrides it in one line.
+- Skills. The action ships its own under `skills/` and copies them, with any
+  under the repo's `.github/fx/skills/`, into fx's skill directory on the
+  runner, so they exist for this agent in this run and nowhere else.
+  `skills: false` turns it off. The first is `compare-models`: a model's id
+  and price from the gateway catalog, what people hit with it in the last
+  six months, whether it fits the repo's jobs, and a small, capped test if
+  asked.
 - `effort` input, for models that take a reasoning effort. `pr_model`, so a
   write run can use a stronger model than a question does: one rule, decided
   by the workflow, never by the model.

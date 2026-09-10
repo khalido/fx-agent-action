@@ -74,6 +74,14 @@ on a laptop, and discovers skills in `skills/`, `.claude/skills/`,
 A skill's description sits in the catalog on every run; its instructions load
 only when invoked. On a PR event all of this is the PR branch's copy.
 
+The action adds skills of its own. Its `skills/` folder, and the repo's
+`.github/fx/skills/` if there is one, are copied into `~/.fx/skills/` on the
+runner before fx starts, so they exist for this agent in this run and for
+nothing else, not your laptop's fx, not Claude Code. `skills: false` turns the
+copy off. Shipped today: `compare-models`, for "is this model on the gateway,
+what does it cost, what do people hit, does it fit this repo, switch or test
+it". A skill here improves for every repo on the next run, like the note.
+
 **To add to what the agent does in your repo**, write it in `AGENTS.md`. A
 `## In CI` section keeps bot instructions apart from laptop ones. **To change
 the note entirely**, add `.github/fx/issue.md` and set

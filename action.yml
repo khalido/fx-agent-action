@@ -63,6 +63,15 @@ inputs:
       `allowed_non_write_users`. Write mode always has both.
     required: false
     default: 'false'
+  skills:
+    description: >-
+      Copy the skills shipped with this action (`skills/`) and any under the
+      repo's `.github/fx/skills/` into fx's skill directory on the runner, so
+      the agent can use them there and nowhere else. A repo's own skill
+      folders (`skills/`, `.claude/skills/`, `.agents/skills/`) are seen
+      anyway.
+    required: false
+    default: 'true'
   trigger:
     description: >-
       The phrase that aims a comment at the agent. Matched as a whole word
@@ -371,6 +380,31 @@ runs:
             || { echo "::error::read-mode permission rules did not register: $rules" >&2; exit 1; }
         fi
         fx doctor --json 2>/dev/null | jq -r '"fx doctor: \(.ok_count) ok, \(.warn_count) warn, \(.fail_count) fail; " + ([.checks[] | select(.status != "ok") | "\(.name): \(.detail)"] | join("; "))' >&2 || true
+
+    # fx discovers skills from the workspace upward and from ~/.fx/skills/,
+    # and this action's own checkout under _actions/ is neither. So the skills
+    # shipped here, and any a repo keeps under .github/fx/skills/, are copied
+    # into ~/.fx/skills/ on the runner: visible to fx in this run, invisible to
+    # every other agent. One catalog line per skill; instructions load when
+    # invoked. A repo's root-level skill folders need no copy.
+    - name: Install skills
+      if: ${{ inputs.skills == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOME/.fx/skills"
+        names=()
+        for src in "$GITHUB_ACTION_PATH/skills" .github/fx/skills; do
+          [ -d "$src" ] || continue
+          for d in "$src"/*/; do
+            d="${d%/}"
+            [ -f "$d/SKILL.md" ] || continue
+            cp -R "$d" "$HOME/.fx/skills/$(basename "$d")"
+            names+=("$(basename "$d")")
+          done
+        done
+        echo "skills installed: ${#names[@]}${names[*]:+ (${names[*]})}" >&2
 
     # What the workspace looked like BEFORE the agent touched it, so the pull
     # request carries only its changes and not a previous step's build output.

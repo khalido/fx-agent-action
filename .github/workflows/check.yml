@@ -57,6 +57,14 @@ jobs:
           test -s issues.json || { echo '::error::issues.json was not written'; exit 1; }
           rm issues.json
 
+      - name: skills have name and description
+        run: |
+          for f in skills/*/SKILL.md; do
+            head -1 "$f" | grep -qx -- '---' || { echo "::error::$f: no frontmatter"; exit 1; }
+            grep -q '^name: ' "$f" || { echo "::error::$f: no name"; exit 1; }
+            grep -q '^description: ' "$f" || { echo "::error::$f: no description"; exit 1; }
+          done
+
       - name: python
         run: |
           python3 -m py_compile scripts/*.py

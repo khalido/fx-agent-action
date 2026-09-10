@@ -25,6 +25,7 @@ before a change ships, and `gh`, `jq` and `python3` are already on every runner.
 | `scripts/react.sh` | 👀 on the trigger comment, taken off at the end |
 | `scripts/build-prompt.sh` | runtime block, instruction, then the thread — and it decides read vs write |
 | `prompts/issue.md` | the built-in note prompt, used on `issues` events when the repo gives no other instruction |
+| `skills/*/SKILL.md` | skills copied into `~/.fx/skills/` on the runner for every consuming repo; one folder per procedure |
 | `scripts/session-html.py` | `fx session --json` → one readable HTML file |
 | `scripts/sanitize.py` | strips hidden markup out of the untrusted block |
 | `scripts/run-fx.sh` | one `fx ask --json`, pull out the answer, scrub secrets, record the spend |
@@ -152,6 +153,18 @@ a whole-task replacement, not an addition, on purpose: an additive block in
 front of a built-in task gives the model two output shapes to reconcile, and
 a file of pure repo facts is what `AGENTS.md` already is. Gemini's second
 opinion talked this repo out of a `.github/fx/about.md`; the reasoning held.
+
+**Skills ship in the action and are copied, not discovered.** fx finds skills
+from the workspace upward and in `~/.fx/skills/`; the action's checkout under
+`_actions/` is neither, so `action.yml` copies `skills/` there before the run,
+and a consuming repo's `.github/fx/skills/` with it. That path is the one
+place a skill exists for this agent and no other; a root-level `.claude/skills/`
+is shared with the laptop agents and needs no copy. A skill is for a
+procedure that is rare and should be done the same way each time; two lines
+in the base block would ride on every run instead. The first is
+`compare-models`, because every consumer uses the gateway by construction.
+Add a second when a second procedure repeats, not before. Frontmatter is
+`name` and `description`, checked in `check.yml`.
 
 **Cost and tokens come from `fx usage --json`, not from `fx ask`.** `ask`
 reports tokens and no price, and only the main agent's tokens: subagents, the
