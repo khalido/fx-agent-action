@@ -55,7 +55,9 @@ That section **is** the release notes. One text, no second draft to drift.
 ### 4. Check it
 
 `shellcheck -S warning scripts/*.sh`, `actionlint`, and every input or output
-the changelog names exists in `action.yml`. For a **MAJOR**, also hand the
+the changelog names exists in `action.yml`. Bring the `actions/*` pins in
+`examples/` and `action.yml` up to whatever Dependabot has moved
+`.github/workflows/` to, so the file people copy is the one that is tested. For a **MAJOR**, also hand the
 section to a fresh subagent to verify each claim against the code: editorial
 passes embellish and can invert, and a major is the release people read.
 
