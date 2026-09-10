@@ -19,43 +19,62 @@ MARKER="<!-- fx-agent-action${COMMENT_KEY:+:$COMMENT_KEY} -->"
 LIMIT=60000   # GitHub rejects a comment body over 65,536 characters with a 422
 body="$RUNNER_TEMP/fx-comment.md"
 repo="${GITHUB_REPOSITORY}"
+run_url="${GITHUB_SERVER_URL:-https://github.com}/$repo/actions/runs/${GITHUB_RUN_ID:-}"
+
+# Ours is a comment whose body starts with the marker. Paginated because a long
+# thread would otherwise hide it past the first page. The body comes back too:
+# it carries the run ledger below.
+existing=$(gh api "repos/$repo/issues/$ISSUE_NUMBER/comments" --paginate \
+  --jq "[.[] | select((.body // \"\") | startswith(\"$MARKER\"))] | last // empty" 2>/dev/null || true)
+existing_id=$(printf '%s' "$existing" | jq -r '.id // empty' 2>/dev/null || true)
+
+# --- the run ledger -----------------------------------------------------------
+# A comment that is rewritten on every edit would otherwise show only the last
+# run's cost. So each run is appended to a hidden JSON line under the marker,
+# capped at the last six, and the footer renders them: the newest in full, the
+# earlier ones as one short line each, and a total. The script does the adding;
+# the model is never asked to.
+previous=$(printf '%s' "$existing" | jq -r '.body // ""' 2>/dev/null \
+  | sed -n 's/^<!-- fx-runs \(.*\) -->$/\1/p' | head -n1)
+[ -n "$previous" ] && printf '%s' "$previous" | jq -e 'type == "array"' >/dev/null 2>&1 || previous='[]'
+this_run=$(jq -nc --arg m "${MODEL:-}" --arg c "${COST:-}" --arg s "${DURATION:-}" \
+  --arg i "${IN_TOKENS:-}" --arg o "${OUT_TOKENS:-}" --arg u "$run_url" \
+  '{m:$m, c:($c|tonumber? // null), s:($s|tonumber? // null), i:($i|tonumber? // null), o:($o|tonumber? // null), u:$u}')
+runs=$(printf '%s' "$previous" | jq -c --argjson r "$this_run" '. + [$r] | .[-6:]')
+
+# Cents with one decimal; dollars from $1. Tokens in k from a thousand.
+footer=$(printf '%s' "$runs" | jq -r '
+  def cents: if . == null then "?" elif . >= 1 then "$" + (. * 100 | round / 100 | tostring) else ((. * 1000 | round) / 10 | tostring) + "¢" end;
+  def k: if . == null then "?" elif . >= 1000 then ((. / 100 | round) / 10 | tostring) + "k" else tostring end;
+  def secs: if . == null then "" else " · " + (tostring) + "s" end;
+  (.[-1]) as $n
+  | ["[fx](https://fx.sh) `\($n.m)` · \($n.i | k) in / \($n.o | k) out · \($n.c | cents)\($n.s | secs) · [run](\($n.u))"]
+  + [ .[:-1] | reverse | .[] | "earlier · \(.c | cents)\(.s | secs) · [run](\(.u))" ]
+  + (if length > 1 then ["\(length) runs · \([.[].c | select(. != null)] | add | cents) total"] else [] end)
+  | .[]')
 
 {
   printf '%s\n' "$MARKER"
+  printf '<!-- fx-runs %s -->\n' "$runs"
   if [ -n "${RESPONSE_PATH:-}" ] && [ -s "${RESPONSE_PATH:-}" ]; then
     if [ "$(wc -c < "$RESPONSE_PATH")" -gt "$LIMIT" ]; then
       head -c "$LIMIT" "$RESPONSE_PATH"
-      printf '\n\n*Answer truncated — the rest is in the [step summary](%s/%s/actions/runs/%s).*\n' \
-        "${GITHUB_SERVER_URL:-https://github.com}" "$repo" "${GITHUB_RUN_ID:-}"
+      printf '\n\n*Answer truncated — the rest is in the [step summary](%s).*\n' "$run_url"
     else
       cat "$RESPONSE_PATH"
     fi
   else
-    printf 'The run failed before there was an answer. The [log](%s/%s/actions/runs/%s) says why.\n' \
-      "${GITHUB_SERVER_URL:-https://github.com}" "$repo" "${GITHUB_RUN_ID:-}"
+    printf 'The run failed before there was an answer. The [log](%s) says why.\n' "$run_url"
   fi
   [ -n "${PR_URL:-}" ] && printf '\n\nOpened %s — nobody has reviewed it yet.\n' "$PR_URL"
   [ "${RUN_FAILED:-success}" = "failure" ] && printf '\n\n*The run itself failed; the answer above may be partial.*\n'
-  # fx · model · tokens · cost · time · run. Tokens in k past ten thousand,
-  # dollars to three places: the footer is for a glance, the run for the rest.
-  k() { if [ "${1:-0}" -ge 10000 ] 2>/dev/null; then printf '%dk' $(( $1 / 1000 )); else printf '%s' "${1:-0}"; fi; }
-  printf '\n\n---\n'
-  printf '[fx](https://fx.sh) `%s`' "${MODEL:-}"
-  [ -n "${IN_TOKENS:-}" ] && printf ' · %s in / %s out' "$(k "$IN_TOKENS")" "$(k "${OUT_TOKENS:-0}")"
-  [ -n "${COST:-}" ] && printf ' · $%s' "$(awk -v c="$COST" 'BEGIN { printf "%.3f", c + 0 }')"
-  [ -n "${DURATION:-}" ] && printf ' · %ss' "$DURATION"
-  printf ' · [run](%s/%s/actions/runs/%s)\n' "${GITHUB_SERVER_URL:-https://github.com}" "$repo" "${GITHUB_RUN_ID:-}"
+  printf '\n\n---\n%s\n' "$footer"
 } > "$body"
 
-# Ours is a comment whose body starts with the marker. Paginated because a long
-# thread would otherwise hide it past the first page.
-existing=$(gh api "repos/$repo/issues/$ISSUE_NUMBER/comments" --paginate \
-  --jq "[.[] | select((.body // \"\") | startswith(\"$MARKER\")) | .id] | last // empty" 2>/dev/null || true)
-
-if [ -n "$existing" ]; then
-  url=$(gh api -X PATCH "repos/$repo/issues/comments/$existing" \
+if [ -n "$existing_id" ]; then
+  url=$(gh api -X PATCH "repos/$repo/issues/comments/$existing_id" \
     -F "body=@$body" --jq '.html_url')
-  echo "Updated comment $existing" >&2
+  echo "Updated comment $existing_id (run $(printf '%s' "$runs" | jq length))" >&2
 else
   url=$(gh api -X POST "repos/$repo/issues/$ISSUE_NUMBER/comments" \
     -F "body=@$body" --jq '.html_url')

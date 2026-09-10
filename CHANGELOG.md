@@ -28,8 +28,10 @@ as a break.
   on.
 - 👀 on the trigger comment, or on the issue itself when a new or edited issue
   is the trigger, taken off when the answer lands.
-- The footer reads fx · model · tokens · cost · time · run, with dollars to
-  three places.
+- The footer reads fx · model · tokens · cost · time · run, cost in cents.
+  A comment that is rewritten keeps a hidden ledger of its runs and stacks
+  the earlier ones under the newest with a total, so five edits show five
+  costs and their sum. The script does the adding; the model is never asked.
 - The whole session as one self-contained HTML file on the run page — every
   tool call, its arguments and its result — kept for a week.
 - `examples/fx.yml`, the one file to copy into a repo: a note on every issue

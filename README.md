@@ -155,7 +155,10 @@ coding-agent actions do differently.
 
 Every run uploads the session as one HTML file, kept a week: every tool call,
 its arguments, its result, including web searches with the exact date window
-they used. Read that before guessing. The comment footer links the run.
+they used. Read that before guessing. The comment footer has the model,
+tokens, cost in cents and a link to the run, and when a comment has been
+rewritten it stacks the earlier runs and a total. The script does that sum,
+not the model.
 
 ## A bot with its own name
 
