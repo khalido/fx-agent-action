@@ -22,9 +22,11 @@ jobs:
       - name: shellcheck
         run: shellcheck -S warning scripts/*.sh
 
+      # Pinned to a tag on both sides: the download script and the binary it
+      # fetches. Dependabot does not see this line, so bump it by hand.
       - name: actionlint
         run: |
-          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
           ./actionlint -color
 
       # The dogfood workflow is examples/fx.yml with `uses: ./`, and nothing
