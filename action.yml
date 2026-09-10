@@ -27,9 +27,11 @@ inputs:
     default: ''
   prompt_file:
     description: >-
-      A file in the checked-out repo holding the instructions, used instead of
-      `prompt`. Keeping the wording in the repo means editing the agent without
-      touching YAML.
+      A file in the checked-out repo holding the instructions. When it exists
+      it is used instead of `prompt`; when it does not and `prompt` is set, the
+      inline prompt runs and a notice says so. That is how one workflow file
+      serves many repos: the inline prompt is the default, the file is a repo's
+      override. Missing with no `prompt` is an error.
     required: false
     default: ''
   model:

@@ -95,6 +95,22 @@ mention in a public repo would page them. `@fx-agent` is unclaimed and works if
 you prefer the look of a mention; so does any list of phrases,
 `trigger: '/fx, /agent'`. Widen the job's `if:` to match.
 
+## Changing what it says
+
+Three layers, and a repo touches only the middle one:
+
+1. **The base block**, written by the action: where it is running, which tools
+   it has in this mode, that only its final answer is posted, no headers, name
+   files by path. Fixed.
+2. **The job's prompt**, on top: `prompt` inline in the workflow, or
+   `prompt_file` pointing at a file in the repo. When both are set the file
+   wins if it exists, so [`examples/fx.yml`](examples/fx.yml) carries a default
+   note prompt and a repo overrides it by adding `.github/fx/issue-notes.md`.
+   [`prompts/issue-notes.md`](prompts/issue-notes.md) is that text, ready to
+   copy. For `/fx` comments the prompt is the comment.
+3. **The repo's own `AGENTS.md`**, which fx reads as project guidance, the
+   same as it does on your machine.
+
 ## Who can trigger a run
 
 Two checks run before anything else, and the run fails if either says no. They

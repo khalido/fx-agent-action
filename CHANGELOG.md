@@ -40,6 +40,9 @@ as a break.
 - A cancelled run, one superseded by a newer comment mid-edit, no longer
   pushes its half-finished edits or posts a "failed" comment. A failed run
   still does both, on purpose.
+- `prompt_file` falls back to `prompt` when the file is absent, with a
+  notice, so one workflow file serves many repos and a repo overrides the
+  prompt by adding a file rather than editing YAML.
 - `comment_key`, so two fx jobs on one thread keep separate comments: the
   issue note is not overwritten by a `/fx` answer, or the other way round.
 - Five more examples: issue notes, PR review, triage from the repo's real

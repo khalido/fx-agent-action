@@ -1,10 +1,10 @@
 # Issue notes
 
-The same prompt `examples/fx.yml` carries inline, for repos that would rather
-keep it in a file: copy this to `.github/fx/issue-notes.md`, point
-`prompt_file` at it, and edit the agent without touching YAML. The `Where`,
-`Already here`, `Related` lines are the ones to rewrite for your project's
-shape.
+The prompt `examples/fx.yml` runs on every issue, as a file. To change it for
+one repo, copy this to `.github/fx/issue-notes.md` there and edit: the
+workflow prefers that file when it exists and falls back to its inline copy
+when it does not. The `Where`, `Already here` and `Related` lines are the ones
+to rewrite for a project's shape.
 
 ---
 

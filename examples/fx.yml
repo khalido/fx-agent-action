@@ -70,12 +70,13 @@ jobs:
           mode: read
           shell: true
           comment_key: note
-          # Or point `prompt_file` at a file in your repo and edit the agent
-          # without touching YAML; prompts/issue-notes.md in the action's repo
-          # is the same text. Web search needs no key here, and a limit stated
-          # in the prompt ("last six months", "news.ycombinator.com") reaches
-          # Exa as real parameters: start_published_date, include_domains.
-          # The session artifact shows the exact call.
+          # To change the note for one repo, add this file to it; the inline
+          # prompt below is the default when the file is absent. The action's
+          # base block (where it runs, what tools it has, how the answer is
+          # posted) sits above either one. Web search needs no key, and a limit
+          # stated in the prompt ("last six months", "news.ycombinator.com")
+          # reaches Exa as real parameters; the session artifact shows the call.
+          prompt_file: .github/fx/issue-notes.md
           prompt: |
             You leave one short note on a GitHub issue, for whoever works on it
             next: a person, or an agent they point at it. You can only read
