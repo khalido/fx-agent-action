@@ -48,6 +48,20 @@ as a break.
 - `prompt_file` falls back to `prompt` when the file is absent, with a
   notice, so one workflow file serves many repos and a repo overrides the
   prompt by adding a file rather than editing YAML.
+- `effort` input, for models that take a reasoning effort.
+- The settings written for fx now include `max_agent_steps`,
+  `max_tool_result_bytes` and `context`, so a checked-out `.fx.json` cannot
+  change them, and the mode, model and rules are read back before the run:
+  a settings file fx cannot parse is dropped whole and silently, and this
+  catches that instead of running on defaults.
+- The fx version comes from the same `latest.txt` the installer reads, and is
+  passed to the installer, so the cache key and the binary always agree.
+- The cost in the footer and on the `cost` output includes the `fx pr` draft,
+  which was a second billed request read too late before. Footer tokens come
+  from the same ledger as the dollars, so both cover helper models and web
+  search.
+- The session artifact shows why a tool call was held or denied, and when a
+  result was truncated.
 - `comment_key`, so two fx jobs on one thread keep separate comments: the
   issue note is not overwritten by a `/fx` answer, or the other way round.
 - Five more examples: issue notes, PR review, triage from the repo's real

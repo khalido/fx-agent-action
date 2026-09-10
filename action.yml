@@ -90,6 +90,13 @@ inputs:
     description: Hard cap on the agent's tool loop. 0 means unlimited.
     required: false
     default: '30'
+  effort:
+    description: >-
+      Reasoning effort, for models that support it: `none`, `minimal`, `low`,
+      `medium`, `high`, `xhigh`, `max`. Empty leaves fx's `auto`. The cheapest
+      lever on a note that comes out shallow.
+    required: false
+    default: ''
   post:
     description: >-
       `comment` (default) posts the answer on the triggering issue or PR,
@@ -155,8 +162,8 @@ outputs:
     description: The agent's final answer, as markdown.
     value: ${{ steps.run.outputs.response }}
   cost:
-    description: What the run cost, in US dollars.
-    value: ${{ steps.run.outputs.cost }}
+    description: What the run cost, in US dollars, including the `fx pr` draft when there was one.
+    value: ${{ steps.pr.outputs.cost || steps.run.outputs.cost }}
   steps:
     description: How many tool-loop steps the agent took.
     value: ${{ steps.run.outputs.steps }}
@@ -212,13 +219,12 @@ runs:
     - name: Resolve the fx version
       id: version
       shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github_token }}
       run: |
         set -euo pipefail
-        # Through gh with the job's token: anonymous api.github.com is 60
-        # requests an hour per IP, shared with every other job on the runner.
-        tag=$(gh api repos/vercel-labs/fx/releases/latest --jq '.tag_name // empty' 2>/dev/null || true)
+        # The same file setup.sh reads, so the cache key and the binary it
+        # installs name the same release even if one lands mid-run.
+        tag=$(curl -fsSL https://releases.fx.sh/latest.txt 2>/dev/null | tr -d '[:space:]' || true)
+        case "$tag" in v[0-9]*) ;; *) tag='' ;; esac
         # actions/cache never overwrites an existing key, so a FIXED fallback
         # would pin whatever binary happened to be cached the day the API was
         # rate-limited, forever. A dated one self-heals the next day.
@@ -233,10 +239,19 @@ runs:
         path: ~/.local/bin/fx
         key: fx-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.tag }}
 
+    # The resolved tag is passed through when there is one, so the installed
+    # binary is the one the cache key names. Without a tag, latest.
     - name: Install fx
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      run: curl -fsSL https://fx.sh/setup.sh | bash
+      env:
+        TAG: ${{ steps.version.outputs.tag }}
+      run: |
+        set -euo pipefail
+        case "$TAG" in
+          v[0-9]*) curl -fsSL https://fx.sh/setup.sh | bash -s -- "$TAG" ;;
+          *)       curl -fsSL https://fx.sh/setup.sh | bash ;;
+        esac
 
     # FX_AUTO_UPGRADE=0: fx checks for a newer release on start and can
     # install it in place. In CI that is a second download of a binary we just
@@ -291,27 +306,56 @@ runs:
     #
     # Web search needs no key. On the AI Gateway fx uses Exa by default and
     # bills it through the same gateway key.
+    #
+    # The checkout can carry a `.fx.json`, and fx honours three of its fields:
+    # max_agent_steps, max_tool_result_bytes, context. The global profile
+    # written here outranks it (verified: a repo file saying 7 steps loses to
+    # 30 in this file), so the three are set explicitly rather than left to
+    # whatever branch is checked out. model and permission_mode in a repo file
+    # are refused by fx itself.
+    #
+    # Then two assertions. A settings file fx cannot parse is dropped WHOLE,
+    # silently, and the run continues on defaults: auto mode, no deny rules,
+    # fx's own default model. So the rules and the mode are read back before
+    # anything runs. Rule KEYS are not validated by fx — a misspelled one is
+    # stored and echoed — so the read-back proves the file parsed, not that the
+    # names are the right ones; `edit` and `shell` are the two measured to bind.
     - name: Configure fx
       shell: bash
       env:
         MODE: ${{ steps.context.outputs.mode }}
         SHELL_TOOL: ${{ inputs.shell }}
         MODEL: ${{ inputs.model }}
+        MAX_STEPS: ${{ inputs.max_steps }}
+        EFFORT: ${{ inputs.effort }}
       run: |
         set -euo pipefail
         mkdir -p "$HOME/.fx"
+        steps="${MAX_STEPS:-30}"
+        common=$(jq -n --arg model "$MODEL" --argjson steps "$steps" --arg effort "$EFFORT" \
+          '{models:{gateway:$model}, max_agent_steps:$steps, max_tool_result_bytes:65536, context:true}
+           + (if $effort != "" then {effort:$effort} else {} end)')
         if [ "$MODE" = "read" ]; then
           shell_rule=deny; [ "$SHELL_TOOL" = "true" ] && shell_rule=allow
-          jq -n --arg model "$MODEL" --arg shell "$shell_rule" \
-            '{permission_mode:"auto", models:{gateway:$model},
-              permission:{edit:{"*":"deny"}, shell:{"*":$shell}}}' \
+          printf '%s' "$common" | jq --arg shell "$shell_rule" \
+            '. + {permission_mode:"auto", permission:{edit:{"*":"deny"}, shell:{"*":$shell}}}' \
             > "$HOME/.fx/settings.json"
+          want_mode=auto
         else
-          jq -n --arg model "$MODEL" \
-            '{permission_mode:"full-access", models:{gateway:$model}}' \
-            > "$HOME/.fx/settings.json"
+          printf '%s' "$common" | jq '. + {permission_mode:"full-access"}' > "$HOME/.fx/settings.json"
+          want_mode=yolo   # fx reports full-access as its legacy name
         fi
-        echo "fx configured: $MODE mode, shell $SHELL_TOOL, model $MODEL" >&2
+
+        rules=$(fx permissions --json 2>/dev/null | jq -c '[.rules[] | "\(.permission)=\(.action)"]')
+        status=$(fx status --json 2>/dev/null | jq -r '"\(.permission_mode) \(.model) \(.agent_step_limit)"')
+        echo "fx configured: $MODE mode, shell $SHELL_TOOL; rules $rules; status: $status" >&2
+        [ "$status" = "$want_mode $MODEL $steps" ] \
+          || { echo "::error::fx did not take the settings written for it (wanted '$want_mode $MODEL $steps', got '$status'). The settings file may be malformed; nothing ran." >&2; exit 1; }
+        if [ "$MODE" = "read" ]; then
+          printf '%s' "$rules" | jq -e --arg s "$shell_rule" 'index("edit=deny") != null and index("shell=\($s)") != null' >/dev/null \
+            || { echo "::error::read-mode permission rules did not register: $rules" >&2; exit 1; }
+        fi
+        fx doctor --json 2>/dev/null | jq -r '"fx doctor: \(.ok_count) ok, \(.warn_count) warn, \(.fail_count) fail; " + ([.checks[] | select(.status != "ok") | "\(.name): \(.detail)"] | join("; "))' >&2 || true
 
     # What the workspace looked like BEFORE the agent touched it, so the pull
     # request carries only its changes and not a previous step's build output.
@@ -334,7 +378,6 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working_directory }}
       env:
-        FX_MAX_AGENT_STEPS: ${{ inputs.max_steps }}
         PROMPT_PATH: ${{ steps.context.outputs.prompt_path }}
         MAX_COST: ${{ inputs.max_cost }}
       run: bash "${{ github.action_path }}/scripts/run-fx.sh"
@@ -395,7 +438,7 @@ runs:
         RESPONSE_PATH: ${{ steps.run.outputs.response_path }}
         COMMENT_KEY: ${{ inputs.comment_key }}
         MODEL: ${{ inputs.model }}
-        COST: ${{ steps.run.outputs.cost }}
+        COST: ${{ steps.pr.outputs.cost || steps.run.outputs.cost }}
         DURATION: ${{ steps.run.outputs.duration }}
         IN_TOKENS: ${{ steps.run.outputs.input_tokens }}
         OUT_TOKENS: ${{ steps.run.outputs.output_tokens }}

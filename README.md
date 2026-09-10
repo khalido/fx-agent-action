@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: khalido/fx-agent-action@v1
+      - uses: khalido/fx-agent-action@main
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
 ```
@@ -126,7 +126,8 @@ All optional.
 | `trigger` | `/fx` | Whole word, anywhere in the comment. Comma-separate several. |
 | `allowed_non_write_users` | | Logins exempt from the write check, or `*`. |
 | `allowed_bots` | | Bots allowed to trigger, with or without `[bot]`, or `*`. |
-| `max_steps` | `30` | Cap on the tool loop. |
+| `max_steps` | `30` | Cap on the tool loop. Set here, so a repo's `.fx.json` cannot raise it. |
+| `effort` | fx's `auto` | Reasoning effort, `low` to `max`, on models that have it. |
 | `max_cost` | `1` | Fail over this many dollars, after the fact. A `pr` still opens. |
 | `post` | `comment` | `none` leaves the answer on the `response` output. |
 | `comment_key` | | Keeps this job's comment apart from another fx job's. |
@@ -171,7 +172,7 @@ install it, pass its token:
   with:
     app-id: ${{ secrets.FX_APP_ID }}
     private-key: ${{ secrets.FX_APP_PRIVATE_KEY }}
-- uses: khalido/fx-agent-action@v1
+- uses: khalido/fx-agent-action@main
   with:
     github_token: ${{ steps.app.outputs.token }}
 ```
@@ -188,7 +189,18 @@ don't want the ability to mint tokens into your repo.
   write-access check exists.
 - **The workflow's `permissions:` block decides what the agent can do**, not
   this action. `contents: write` can push to your default branch; branch
-  protection is what makes "at most a draft PR" true.
+  protection is what makes "at most a draft PR" true. A private repo on the
+  free plan cannot have branch protection, so there `/fx pr` means trusting
+  everyone with write access completely. If that is not true of your repo,
+  do not wire `pr`: `mode: read` and `contents: read`.
+- **Read mode can reach the web.** Search and fetch are on, so an injected
+  thread that steers the agent could read a file and send it out in a URL.
+  The write-access check is the control; only people who could already read
+  the repo can start a run.
+- **`@main` for now.** Every push here reaches every repo on `@main` at its
+  next run, good and bad. That is the right trade while this is young and the
+  people using it are in the same room. Once a release exists, `@v1` moves
+  only when one is published, and is what to use in a repo you do not watch.
 - **Give the key its own budget.** The gateway enforces it. `max_cost` only
   notices afterwards. Anyone who can trigger a run can spend the key, and
   with `shell: true` a thread that talks the agent into a command has a shell

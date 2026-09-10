@@ -57,7 +57,15 @@ python3 -c "import sys; sys.path.insert(0, '$(dirname "$0")'); import redact; \
 # `fx ask --json` reports tokens but no price. `fx usage` does report dollars —
 # it keeps a local ledger — and the runner's HOME is new every job, so the only
 # spend in it is this run's. That is where the footer's figure comes from.
-cost=$(fx usage --json 2>/dev/null | jq -r '.totals.spend // empty' || true)
+# Tokens from the same ledger, when it has them: `fx ask` counts only the
+# main agent, while the ledger includes helper models and provider tools,
+# which is what the dollars cover. One source for both numbers in the footer.
+usage=$(fx usage --json 2>/dev/null || true)
+cost=$(printf '%s' "$usage" | jq -r '.totals.spend // empty' 2>/dev/null || true)
+ledger_in=$(printf '%s' "$usage" | jq -r '.totals.input_tokens // empty' 2>/dev/null || true)
+ledger_out=$(printf '%s' "$usage" | jq -r '.totals.output_tokens // empty' 2>/dev/null || true)
+[ -n "$ledger_in" ] && in_tokens="$ledger_in"
+[ -n "$ledger_out" ] && out_tokens="$ledger_out"
 fx_version=$(fx --version 2>/dev/null | head -1 || echo unknown)
 
 # A random delimiter, not a fixed one. The payload is model output: with a fixed

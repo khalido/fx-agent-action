@@ -35,7 +35,7 @@ jobs:
       # and not in examples/, and the release skill brings examples/ up to date.
       - name: dogfood workflow matches the example
         run: |
-          norm() { sed -E 's|uses: khalido/fx-agent-action@v1|uses: ./|; s|(uses: actions/[a-z-]+)@v[0-9.]+|\1@vN|' "$1"; }
+          norm() { sed -E 's|uses: khalido/fx-agent-action@main|uses: ./|; s|(uses: actions/[a-z-]+)@v[0-9.]+|\1@vN|' "$1"; }
           diff <(norm examples/fx.yml) <(norm .github/workflows/fx.yml)
 
       - name: python
