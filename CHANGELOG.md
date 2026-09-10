@@ -50,9 +50,19 @@ as a break.
 - A cancelled run, one superseded by a newer comment mid-edit, no longer
   pushes its half-finished edits or posts a "failed" comment. A failed run
   still does both, on purpose.
-- `prompt_file` falls back to `prompt` when the file is absent, with a
-  notice, so one workflow file serves many repos and a repo overrides the
-  prompt by adding a file rather than editing YAML.
+- The note prompt is built into the action, `prompts/issue.md`, and
+  runs on any `issues` event that gives no other instruction; the action also
+  fetches the `issues.json` it cites. A repo replaces the note by adding
+  `.github/fx/issue.md`, and puts facts about itself in `AGENTS.md`,
+  which fx reads on every run. `examples/fx.yml` shrinks to wiring, and a
+  better note here reaches every repo on its next run.
+- `prompt_file` falls back, with a notice, when the file is absent, so one
+  workflow file serves many repos and a repo overrides the prompt by adding a
+  file rather than editing YAML.
+- The base block tells the agent nothing is interactive: nobody answers, no
+  browser, no dev server, nothing it starts outlives the run. A repo's
+  `AGENTS.md` written for a laptop can say "run the app and click"; this is
+  what stops the agent trying.
 - The default model is `deepseek/deepseek-v4.1-flash`: the same price per
   token as `zai/glm-5.3-flash` within a fraction of a cent and better on
   every measure that mattered here. It works harder per run, so a note costs

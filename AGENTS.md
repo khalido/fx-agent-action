@@ -24,6 +24,7 @@ before a change ships, and `gh`, `jq` and `python3` are already on every runner.
 | `scripts/check-actor.sh` | write access and human-actor checks, first, and the run fails if either says no |
 | `scripts/react.sh` | 👀 on the trigger comment, taken off at the end |
 | `scripts/build-prompt.sh` | runtime block, instruction, then the thread — and it decides read vs write |
+| `prompts/issue.md` | the built-in note prompt, used on `issues` events when the repo gives no other instruction |
 | `scripts/session-html.py` | `fx session --json` → one readable HTML file |
 | `scripts/sanitize.py` | strips hidden markup out of the untrusted block |
 | `scripts/run-fx.sh` | one `fx ask --json`, pull out the answer, scrub secrets, record the spend |
@@ -31,7 +32,7 @@ before a change ships, and `gh`, `jq` and `python3` are already on every runner.
 | `scripts/post-comment.sh` | upsert one comment, found by a hidden marker |
 | `scripts/open-pr.sh` | branch, commit, push, open the draft PR |
 
-If a change wants a tenth file, ask whether it belongs in the prompt instead.
+If a change wants another file, ask whether it belongs in the prompt instead.
 
 ## The decisions, and why each one
 
@@ -135,6 +136,18 @@ which is why `max_steps` is an input and not something a repo can raise.
 `working_directory` narrows the workspace but not the instructions: fx also
 loads `AGENTS.md` from launch-ancestor directories, so the repo root's file
 still applies.
+
+**The note prompt lives in the action, not in the workflow.** It was forty
+lines of YAML prose in `examples/fx.yml`, frozen in every repo the day it was
+copied. Now `build-prompt.sh` loads `prompts/issue.md` on an `issues`
+event when no `prompt_file` exists and no `prompt` is set, and fetches the
+`issues.json` it cites, so a better note here is a better note everywhere on
+the next run. The cascade is: `prompt_file` if it exists, inline `prompt`,
+built-in note on issue events, else the triggering comment. A repo file is
+a whole-task replacement, not an addition, on purpose: an additive block in
+front of a built-in task gives the model two output shapes to reconcile, and
+a file of pure repo facts is what `AGENTS.md` already is. Gemini's second
+opinion talked this repo out of a `.github/fx/about.md`; the reasoning held.
 
 **Cost and tokens come from `fx usage --json`, not from `fx ask`.** `ask`
 reports tokens and no price, and only the main agent's tokens: subagents, the
@@ -290,6 +303,9 @@ export GITHUB_OUTPUT=$RUNNER_TEMP/out GITHUB_REPOSITORY=owner/repo GH_TOKEN=$(gh
 export INPUT_PROMPT="Summarise this issue in one line." INPUT_ISSUE_NUMBER=1
 bash scripts/build-prompt.sh && cat "$RUNNER_TEMP/fx-prompt.md"
 ```
+
+For the built-in note, `GITHUB_EVENT_NAME=issues` with `INPUT_PROMPT` unset;
+`check.yml` runs that cascade with a fake payload on every push.
 
 `scripts/check-actor.sh` takes `ACTOR`, `EVENT_NAME`, `SENDER_TYPE`,
 `ALLOWED_NON_WRITE_USERS`, `ALLOWED_BOTS` and a real `GITHUB_REPOSITORY`;

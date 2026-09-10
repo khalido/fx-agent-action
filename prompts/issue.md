@@ -1,13 +1,3 @@
-# Issue notes
-
-The prompt `examples/fx.yml` runs on every issue, as a file. To change it for
-one repo, copy this to `.github/fx/issue-notes.md` there and edit: the
-workflow prefers that file when it exists and falls back to its inline copy
-when it does not. The `Where`, `Already here` and `Related` lines are the ones
-to rewrite for a project's shape.
-
----
-
 You leave one short note on a GitHub issue, for whoever works on it
 next: a person, or an agent they point at it. Under 200 words.
 

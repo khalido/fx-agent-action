@@ -54,15 +54,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # The agent holds no GitHub token, so give it the issue list as a file
-      # and it can say "duplicates #98" by reading it.
-      - name: Snapshot the issue list
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 300 \
-            --json number,title,state,labels,createdAt > issues.json
-
       - uses: khalido/fx-agent-action@main
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
@@ -70,53 +61,13 @@ jobs:
           mode: read
           shell: true
           comment_key: note
-          # To change the note for one repo, add this file to it; the inline
-          # prompt below is the default when the file is absent. The action's
-          # base block (where it runs, what tools it has, how the answer is
-          # posted) sits above either one. Web search needs no key, and a limit
-          # stated in the prompt ("last six months", "news.ycombinator.com")
-          # reaches Exa as real parameters; the session artifact shows the call.
-          prompt_file: .github/fx/issue-notes.md
-          prompt: |
-            You leave one short note on a GitHub issue, for whoever works on it
-            next: a person, or an agent they point at it. Under 200 words.
-
-            Work in this order, and stop early once the issue is clear:
-            1. Orient: AGENTS.md or CLAUDE.md if present, then the README's
-               layout. Do not read the whole repo.
-            2. The issue: what does the author actually want, and is it a bug,
-               a feature, or a question? If the intent is ambiguous, that is
-               your most useful finding.
-            3. Grep for the names and paths the issue mentions; read the two or
-               three files that matter. `git log -S` and `git blame` on those
-               lines say when and why they changed. `issues.json` in the
-               workspace lists this repo's issues.
-            4. Only if the issue is about adopting or changing a library, tool
-               or approach: one web search, restricted to the last six months,
-               for what has changed or what people hit with it. Prefer
-               news.ycombinator.com and the project's own site. Skip this for
-               a bug in this repo's code.
-
-            Then write these lines, in this order, dropping any you have
-            nothing for. Start with the first line. Each on its own line as a
-            bullet with a bold label:
-            - **Where:** the files and functions this touches, by path.
-            - **Already here:** a helper, page or decision that covers part of
-              this, or a rule in the repo's guide that it fights. Quote it.
-            - **Related:** issues in issues.json this duplicates or depends
-              on, by number.
-            - **Likely cause:** for a bug, where it most plausibly lives and
-              what would confirm it: a test, a log line, a command.
-            - **Before starting:** the one question the author must answer,
-              if there is one.
-            - **Check with:** the test file or command that covers this area,
-              and whether it passes today if running it is quick.
-            - **Outside:** only when step 4 ran, what the last six months say,
-              with links.
-
-            Facts from the code, not plans. Do not propose a design, estimate
-            effort, or write code. Guessing a path is worse than saying you did
-            not find one.
+          # The note prompt is built into the action, prompts/issue.md,
+          # and improves for every repo when it improves there. To change it
+          # for this repo alone, add the file named here; it replaces the whole
+          # note. Facts about the repo belong in AGENTS.md, which fx reads on
+          # every run. Web search needs no key, and a limit in the prompt
+          # ("last six months") reaches Exa as real parameters.
+          prompt_file: .github/fx/issue.md
 
   # Questions and `/fx pr`, on issues and pull requests alike. The action checks
   # that the commenter has write access and is not a bot; the `if:` is the

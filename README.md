@@ -87,16 +87,25 @@ match.
 
 ## Changing what it says
 
-Three layers. A repo touches the middle one.
+The action already knows how to be an agent in a runner: where it is, which
+tools it has, that nobody will answer it, how the answer is posted, how a PR
+happens. The note it leaves on an issue is built in too,
+[`prompts/issue.md`](prompts/issue.md), and when that prompt gets
+better here it gets better in every repo on the next run. What a repo adds is
+about the repo, and there are two doors.
 
-1. **The base block**, written by the action: where it runs, which tools it
-   has, that only the final answer is posted, no headers, files by path.
-2. **The job's prompt**: `prompt` inline, or `prompt_file` in the repo. When
-   both are set the file wins if it exists, so `examples/fx.yml` carries a
-   default note prompt and a repo overrides it by adding
-   `.github/fx/issue-notes.md`. [`prompts/issue-notes.md`](prompts/issue-notes.md)
-   is that text. For `/fx` comments the prompt is the comment.
-3. **The repo's own `AGENTS.md`**, which fx reads as it does on your machine.
+**Facts about your repo go in `AGENTS.md`.** fx reads it on every run, the
+same file your other agents read. A short `## In CI` section is enough for
+anything the bot should do differently from an agent on a laptop: "issues here
+are mostly content, check LOG.md's open decisions first, anything that needs
+taste is KO's call".
+
+**A different note shape goes in `.github/fx/issue.md`.** `examples/fx.yml`
+names that file as `prompt_file`; when it exists it replaces the built-in note
+whole. Start from the built-in text and change the bullet labels to what the
+next person on your issues needs. `prompt` inline in the workflow does the
+same for a job that is not the note. For `/fx` comments the prompt is the
+comment.
 
 ## Who can trigger a run
 
@@ -118,8 +127,8 @@ All optional.
 
 | Input | Default | |
 |---|---|---|
-| `prompt` | the comment | What to ask. The thread is appended below it. |
-| `prompt_file` | | Instructions in a file in your repo. Wins over `prompt` when it exists. |
+| `prompt` | the comment, or the built-in note on an issue event | What to ask. The thread is appended below it. |
+| `prompt_file` | | Instructions in a file in your repo. Wins over `prompt` and the built-in note when it exists. |
 | `model` | `deepseek/deepseek-v4.1-flash` | Any [AI Gateway model id](https://vercel.com/ai-gateway/models). |
 | `pr_model` | same as `model` | A stronger model for `pr` runs only. |
 | `mode` | `auto` | The comment decides. `read` and `write` force it. |
@@ -144,7 +153,6 @@ Outputs: `response`, `cost`, `steps`, `session_id`, `comment_url`, `pr_url`.
 Working workflows in [`examples/`](examples/):
 
 - **[fx](examples/fx.yml)**: the one to copy. Issue notes, `/fx`, `/fx pr`.
-- **[issue-notes](examples/issue-notes.yml)**: the note alone, from a prompt file.
 - **[pr-review](examples/pr-review.yml)**: a review on open and on push, under 200 words, no praise.
 - **[triage](examples/triage.yml)**: labels from the ones the repo has. The agent picks, the workflow applies, so it cannot invent one.
 - **[build-it](examples/build-it.yml)**: `/fx pr` alone.

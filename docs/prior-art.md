@@ -155,7 +155,7 @@ One line each, grouped, with who documents it.
 ### Issues
 - Triage and label a new issue. claude-code-action ("Issue Auto-Triage and Labeling", `examples/issue-triage.yml`), run-gemini-cli (`issue-triage` + `gemini-scheduled-triage`), opencode (triage with an account-age filter), Amazon Q. **fx has this** (`examples/triage.yml`).
 - Detect duplicate issues. claude-code-action (`examples/issue-deduplication.yml`).
-- Answer a question about the codebase on an issue thread. claude-code-action (`@claude What does this function do`), opencode (`/opencode explain this issue`), pi. **fx has this** (`examples/issue-notes.yml`).
+- Answer a question about the codebase on an issue thread. claude-code-action (`@claude What does this function do`), opencode (`/opencode explain this issue`), pi. **fx has this** (the `note` job in `examples/fx.yml`).
 - Implement from an issue and open a PR. opencode (`/opencode fix this`), Copilot (assign the issue), Amazon Q (`/q dev` or label), OpenHands (`fix-me` label), goose (`goose` label), Aider community action. **fx has this** (`examples/build-it.yml`, `/fx pr`).
 - Trigger on assignment to a bot user. Copilot (native), pi ("Assignment Triggers"), claude-code-action (`assignee_trigger`).
 - Trigger on a label. claude-code-action (`label_trigger`, default `claude`), OpenHands (`fix-me`), Amazon Q, goose, legacy Sweep.

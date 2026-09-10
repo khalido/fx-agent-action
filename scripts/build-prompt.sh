@@ -3,7 +3,7 @@
 #
 # Three blocks, in this order:
 #   1. where the agent is running and what happens to what it writes
-#   2. the instruction (from `prompt`, `prompt_file`, or the comment)
+#   2. the instruction (`prompt_file`, `prompt`, the built-in note, or the comment)
 #   3. the GitHub thread, fenced and labelled as evidence
 #
 # Ours first, theirs last: a crafted issue body cannot displace an instruction
@@ -35,21 +35,33 @@ instruction="$RUNNER_TEMP/fx-instruction.md"
 : > "$instruction"
 wants_pr=''
 
-# prompt_file wins when it exists. When it does not and `prompt` is set too,
-# the inline prompt is the default and the file is a repo's override — that is
-# how one workflow file serves many repos — and a notice says which one ran.
-# A missing file with no inline prompt is still an error: nothing to run.
+# Where the instruction comes from, in order: a prompt_file that exists in the
+# checkout; the workflow's inline prompt; on an issue event, the note prompt
+# built into this action; otherwise the comment that triggered the run. The
+# built-in note is what a repo gets by adding nothing, and it improves for
+# every repo when it improves here. A repo that wants a different note adds
+# the file, which replaces it whole; repo facts belong in AGENTS.md, which fx
+# reads on every run. A notice says which one ran.
+event_name="${GITHUB_EVENT_NAME:-}"
+builtin_note="$(dirname "$0")/../prompts/issue.md"
 if [ -n "${INPUT_PROMPT_FILE:-}" ] && [ -f "$INPUT_PROMPT_FILE" ]; then
   cat "$INPUT_PROMPT_FILE" > "$instruction"
   echo "Instruction from $INPUT_PROMPT_FILE" >&2
-elif [ -n "${INPUT_PROMPT_FILE:-}" ] && [ -n "${INPUT_PROMPT:-}" ]; then
-  echo "No $INPUT_PROMPT_FILE in this repo; using the workflow's inline prompt. Add that file to override it." >&2
+elif [ -n "${INPUT_PROMPT:-}" ]; then
+  if [ -n "${INPUT_PROMPT_FILE:-}" ]; then
+    echo "No $INPUT_PROMPT_FILE in this repo; using the workflow's inline prompt. Add that file to override it." >&2
+  fi
   printf '%s' "$INPUT_PROMPT" > "$instruction"
+elif [ "$event_name" = "issues" ] && [ -f "$builtin_note" ]; then
+  if [ -n "${INPUT_PROMPT_FILE:-}" ]; then
+    echo "No $INPUT_PROMPT_FILE in this repo; using the action's built-in note prompt. Add that file to replace it." >&2
+  else
+    echo "Instruction: the action's built-in note prompt, prompts/issue.md" >&2
+  fi
+  cat "$builtin_note" > "$instruction"
 elif [ -n "${INPUT_PROMPT_FILE:-}" ]; then
   echo "::error::prompt_file not found in the checked-out repo: $INPUT_PROMPT_FILE" >&2
   exit 1
-elif [ -n "${INPUT_PROMPT:-}" ]; then
-  printf '%s' "$INPUT_PROMPT" > "$instruction"
 else
   # A PR review's body lives under .review; a comment's under .comment.
   comment="$(payload '.comment.body // .review.body' | tr -d '\r')"   # CRLF would end up in the verb
@@ -141,6 +153,12 @@ fi
   printf 'checkout of this repository'
   [ -n "$issue" ] && printf ', triggered from #%s' "$issue"
   printf '.\n\n'
+  cat <<'TXT'
+Nothing here is interactive. Nobody answers a question you ask, there is no
+browser and no dev server to click, and nothing you start outlives this run.
+Work from what is in front of you and finish in one pass.
+
+TXT
 
   if [ "$mode" = "read" ]; then
     if [ "${INPUT_SHELL:-false}" = "true" ]; then
@@ -205,6 +223,18 @@ TXT
 
 # --- 2. the instruction ------------------------------------------------------
 cat "$instruction" >> "$prompt_path"
+
+# On an issue event the note prompt cites `issues.json`, so it can say
+# "duplicates #98". fx holds no GitHub token, so the list is fetched here and
+# left in the workspace as a file. Before the tree snapshot, so it never lands
+# in a pull request.
+if [ "$event_name" = "issues" ] && [ -n "${GH_TOKEN:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
+  if ! gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 300 \
+       --json number,title,state,labels,createdAt > issues.json 2>"$RUNNER_TEMP/gh-issues.err"; then
+    echo "::warning::Could not fetch the issue list for issues.json: $(tr '\n' ' ' < "$RUNNER_TEMP/gh-issues.err")" >&2
+    rm -f issues.json
+  fi
+fi
 
 # --- 3. the context ----------------------------------------------------------
 {
