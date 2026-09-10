@@ -84,14 +84,18 @@ reads the mode, model, step limit and rules back and fails the run when they
 are not what it wrote. A settings file fx cannot parse is dropped whole and
 silently too, and the same read-back catches that.
 
-**`shell: true` is read mode plus the shell, allowed by rule.** An allow rule
-rather than leaving it to `auto`, because auto's review is a billed helper
-call per unresolved command. Edit tools stay denied; the shell can still write
-files, but nothing in read mode is committed or opened, so the checkout is
-scratch paper. What the shell does change is exposure: it can read the gateway
-key out of the environment, so `check-actor.sh` refuses it together with
-`allowed_non_write_users`, and `examples/fx.yml` restricts the note to issues
-from people with write access instead.
+**`shell: true` is scratch mode: read mode plus the shell and the edit tools,
+both allowed by rule.** Allow rules rather than leaving it to `auto`, because
+auto's review is a billed helper call per unresolved action. Edits are on
+because a shell can write files anyway, and an agent that can try a fix and
+run the tests gives a better answer than one that can only guess; nothing in
+read mode is committed or opened, so the checkout is scratch paper and the
+base block says so. What the shell does change is exposure: it can read the
+gateway key out of the environment, so `check-actor.sh` refuses it together
+with `allowed_non_write_users`, and `examples/fx.yml` restricts the note to
+issues from people with write access instead. And because the agent can now
+write to the runner's disk, the action-files fingerprint runs in this mode
+too, not only in write mode.
 
 **Rules go in the global settings file, not a workspace profile.** The checkout
 path changes between runs, so a workspace-scoped rule silently would not apply.
@@ -266,7 +270,8 @@ of both.
 
 ## Prior art
 
-`docs/prior-art.md` is the distilled survey of a dozen coding-agent actions:
+`docs/guide.md` is the long-form user doc, the README's other 20%; keep it
+true when a behaviour changes. `docs/prior-art.md` is the distilled survey of a dozen coding-agent actions:
 trigger, actor checks, auth, output, safety, and the recipes they document,
 plus where this action deliberately differs. `refs/` holds clones of the three
 that matter most, gitignored; `refs/README.md` says how to refresh them. Read

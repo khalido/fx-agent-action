@@ -26,7 +26,8 @@ bullet with a bold label:
 - **Related:** issues in issues.json this duplicates or depends
   on, by number.
 - **Likely cause:** for a bug, where it most plausibly lives and
-  what would confirm it: a test, a log line, a command.
+  what would confirm it: a test, a log line, a command. Run it if
+  it is quick, and say what happened.
 - **Before starting:** the one question the author must answer,
   if there is one.
 - **Check with:** the test file or command that covers this area,

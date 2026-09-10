@@ -32,8 +32,8 @@ concurrency:
 jobs:
   # The note. Fixed prompt, one comment per issue that the action finds by its
   # marker and rewrites, so an edited issue gets a fresh note in the same
-  # place. It has the shell (git log, git blame, the one relevant test) but no
-  # edit tools, and nothing it does to the checkout is kept.
+  # place. It has the shell and can edit files (git log, git blame, try a fix,
+  # run the one relevant test); nothing it does to the checkout is kept.
   #
   # Because of the shell, only issues from people with write access get a
   # note: a shell can read the runner's environment, key included, so a

@@ -56,11 +56,11 @@ inputs:
     default: auto
   shell:
     description: >-
-      Give the agent the shell tool in read mode too: `git log` and `git blame`,
-      the one test that covers the area, a repro. Edits stay denied and nothing
-      is committed or opened, but the shell can read the runner's environment,
-      key included, so this does not combine with `allowed_non_write_users`.
-      Write mode always has the shell.
+      Scratch mode: the shell and the edit tools in read mode too, so the agent
+      can run `git log`, try a fix and run the tests before it answers. Nothing
+      is committed or opened; the checkout is thrown away. The shell can read
+      the runner's environment, key included, so this does not combine with
+      `allowed_non_write_users`. Write mode always has both.
     required: false
     default: 'false'
   trigger:
@@ -348,9 +348,12 @@ runs:
           '{models:{gateway:$model}, max_agent_steps:$steps, max_tool_result_bytes:65536, context:true}
            + (if $effort != "" then {effort:$effort} else {} end)')
         if [ "$MODE" = "read" ]; then
-          shell_rule=deny; [ "$SHELL_TOOL" = "true" ] && shell_rule=allow
-          printf '%s' "$common" | jq --arg shell "$shell_rule" \
-            '. + {permission_mode:"auto", permission:{edit:{"*":"deny"}, shell:{"*":$shell}}}' \
+          # shell: true is scratch mode: shell AND edits, so the agent can try
+          # a fix and run the tests before it answers. Nothing is kept either
+          # way. Without it, both tools are hidden and the run is read-only.
+          tool_rule=deny; [ "$SHELL_TOOL" = "true" ] && tool_rule=allow
+          printf '%s' "$common" | jq --arg r "$tool_rule" \
+            '. + {permission_mode:"auto", permission:{edit:{"*":$r}, shell:{"*":$r}}}' \
             > "$HOME/.fx/settings.json"
           want_mode=auto
         else
@@ -364,7 +367,7 @@ runs:
         [ "$status" = "$want_mode $MODEL $steps" ] \
           || { echo "::error::fx did not take the settings written for it (wanted '$want_mode $MODEL $steps', got '$status'). The settings file may be malformed; nothing ran." >&2; exit 1; }
         if [ "$MODE" = "read" ]; then
-          printf '%s' "$rules" | jq -e --arg s "$shell_rule" 'index("edit=deny") != null and index("shell=\($s)") != null' >/dev/null \
+          printf '%s' "$rules" | jq -e --arg r "$tool_rule" 'index("edit=\($r)") != null and index("shell=\($r)") != null' >/dev/null \
             || { echo "::error::read-mode permission rules did not register: $rules" >&2; exit 1; }
         fi
         fx doctor --json 2>/dev/null | jq -r '"fx doctor: \(.ok_count) ok, \(.warn_count) warn, \(.fail_count) fail; " + ([.checks[] | select(.status != "ok") | "\(.name): \(.detail)"] | join("; "))' >&2 || true
@@ -374,24 +377,30 @@ runs:
     # A tree object, written to a scratch index so the real one is untouched —
     # `git status` text cannot tell "already dirty" from "dirty in the same
     # way", and collapses an untracked directory to a single line.
-    # Two snapshots before fx gets a shell. The tree, so the PR carries only
-    # what fx touched. And a fingerprint of this action's own action.yml and
-    # scripts/, kept as a step output — already in the runner's memory, out of
-    # reach of anything fx does to the disk — because the steps after this one
-    # run scripts from that directory with a token that can push. An agent
-    # talked into editing open-pr.sh could otherwise push to the default
-    # branch, and on a free-plan private repo branch protection is not there
-    # to stop it.
-    - name: Note the working tree
-      id: tree
-      if: ${{ steps.context.outputs.mode == 'write' }}
+    # A fingerprint of this action's own action.yml and scripts/, taken before
+    # fx can write to disk and kept as a step output — in the runner's memory,
+    # out of reach of anything fx does to the filesystem. The steps after fx
+    # run scripts from that directory with a token: one that can push, in
+    # write mode, or post comments, in any mode. An agent talked into editing
+    # open-pr.sh could otherwise push to the default branch, and on a
+    # free-plan private repo branch protection is not there to stop it.
+    - name: Fingerprint the action
+      id: fingerprint
+      if: ${{ steps.context.outputs.mode == 'write' || inputs.shell == 'true' }}
       shell: bash
-      working-directory: ${{ inputs.working_directory }}
       run: |
         set -euo pipefail
         sha=$(find "$GITHUB_ACTION_PATH/action.yml" "$GITHUB_ACTION_PATH/scripts" -type f -print0 \
           | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-64)
         echo "action_sha=$sha" >> "$GITHUB_OUTPUT"
+
+    # The tree before fx touched it, so the PR carries only its changes.
+    - name: Note the working tree
+      if: ${{ steps.context.outputs.mode == 'write' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        set -euo pipefail
         cd "$(git rev-parse --show-toplevel)"
         export GIT_INDEX_FILE="$RUNNER_TEMP/fx-index-before"
         git add -A -- .
@@ -411,10 +420,10 @@ runs:
     # token runs a file from that directory.
     - name: Check the action's own files
       id: integrity
-      if: ${{ !cancelled() && steps.context.outputs.mode == 'write' }}
+      if: ${{ !cancelled() && (steps.context.outputs.mode == 'write' || inputs.shell == 'true') }}
       shell: bash
       env:
-        BEFORE: ${{ steps.tree.outputs.action_sha }}
+        BEFORE: ${{ steps.fingerprint.outputs.action_sha }}
       run: |
         set -euo pipefail
         after=$(find "$GITHUB_ACTION_PATH/action.yml" "$GITHUB_ACTION_PATH/scripts" -type f -print0 \

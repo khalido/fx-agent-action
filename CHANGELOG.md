@@ -38,11 +38,13 @@ as a break.
   opened or edited, refreshed in place, plus `/fx` questions and `/fx pr` on
   issues and PRs. This repo runs the same file on itself, and CI fails if the
   two copies drift.
-- `shell: true`: the shell in read mode too, for `git log`, `git blame` and
-  the tests, with edits denied and nothing committed. Refused together with
+- `shell: true`: the shell and the edit tools in read mode too, so the agent
+  can run `git log`, try a fix and run the tests before it answers, with
+  nothing committed; the checkout is scratch paper. Refused together with
   `allowed_non_write_users`, and with an allowed bot on an issue or PR event,
   because a shell can read the key and the bot's text is the instruction.
-- A write run that finds fx has changed the action's own `action.yml` or
+- A run in which fx could write to disk, write mode or `shell: true`, that
+  finds fx has changed the action's own `action.yml` or
   `scripts/` stops before opening a PR or posting, since those scripts run
   next with a token that can push. fx's own process never holds that token.
   Branch protection is still the answer where it exists; this is for the

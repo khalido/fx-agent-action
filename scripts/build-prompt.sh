@@ -163,9 +163,10 @@ TXT
   if [ "$mode" = "read" ]; then
     if [ "${INPUT_SHELL:-false}" = "true" ]; then
       cat <<'TXT'
-You can read the repository, search the web, and run commands: git log and git
-blame, the tests, a repro. You cannot edit files, and nothing you do to this
-checkout is kept, committed or pushed, so do not try.
+You can read the repository, search the web, run commands and edit files: git
+log and git blame, the tests, a repro, a fix to see whether it holds. This
+checkout is scratch paper. Nothing you do to it is kept, committed or pushed,
+so report what you found, not what you changed.
 TXT
     else
       cat <<'TXT'
