@@ -73,6 +73,16 @@ call. Verified headless: no acknowledgement prompt. Never full-access in read
 mode; it disables the checks the deny rules ride on, and a question has no
 business running commands.
 
+Two things fx does here that look like bugs and are not. Full access is stored
+and reported as `yolo`: write `full-access`, and `fx status --json`,
+`fx doctor --json` and `fx permissions --json` all say `yolo`, on purpose and
+permanently. And rule keys are not validated: `{"edti":{"*":"deny"}}` is
+accepted, stored and echoed back with no warning, so a renamed key would turn
+read mode into write mode with nothing failing. That is why the Configure step
+reads the mode, model, step limit and rules back and fails the run when they
+are not what it wrote. A settings file fx cannot parse is dropped whole and
+silently too, and the same read-back catches that.
+
 **`shell: true` is read mode plus the shell, allowed by rule.** An allow rule
 rather than leaving it to `auto`, because auto's review is a billed helper
 call per unresolved command. Edit tools stay denied; the shell can still write
@@ -107,15 +117,33 @@ config does not name it. `session-html.py` renders these calls from
 `provider_result`, since a note that cites a thread should show the search
 that found it.
 
-**Only the target repo's `AGENTS.md` reaches fx.** fx loads `~/.fx/AGENTS.md`
-and the primary workspace's files; on a runner HOME is fresh and the workspace
-is the checkout, and this action's own checkout sits under `_actions/`,
-outside it. Our runtime block in `build-prompt.sh` is the per-mode instruction
-layer instead.
+**The checkout is fx's workspace, and it contributes more than `AGENTS.md`.**
+fx loads `~/.fx/AGENTS.md` and the primary workspace's files; on a runner HOME
+is fresh and the workspace is the checkout, and this action's own checkout sits
+under `_actions/`, outside it. Our runtime block in `build-prompt.sh` is the
+per-mode instruction layer instead. Two more things come out of the checkout.
+Skills: fx discovers `skills/`, `.claude/skills/`, `.agents/skills/`,
+`.opencode/skills/`, `.codex/skills/` and `.claw/skills/` from the workspace
+upward, and every skill's description sits in the request's catalog; the
+instructions load only when one is invoked. On a PR event that is the PR's
+skills, the same trust boundary as the PR's `AGENTS.md`, and the dogfood run
+sees this repo's `release` skill. And `.fx.json`: fx honours `max_agent_steps`,
+`max_tool_result_bytes` and `context` from it and refuses `model` and
+`permission_mode` with `ignored_project_user_only_setting` on stderr. The
+global profile beats `.fx.json`, so the Configure step writes all three,
+which is why `max_steps` is an input and not something a repo can raise.
+`working_directory` narrows the workspace but not the instructions: fx also
+loads `AGENTS.md` from launch-ancestor directories, so the repo root's file
+still applies.
 
-**Cost comes from `fx usage --json`, not from `fx ask`.** `ask` reports tokens
-and no price. `fx usage` keeps a local ledger with dollars in it, and the
+**Cost and tokens come from `fx usage --json`, not from `fx ask`.** `ask`
+reports tokens and no price, and only the main agent's tokens: subagents, the
+helper models (`auto` review, the vision fallback) and Exa are excluded. `fx
+usage` keeps a local ledger with everything in it, dollars included, and the
 runner's HOME is new every job, so the only spend in it is this run's.
+`fx pr` is a second billed model request with its own saved session, and it
+can run commands; `open-pr.sh` reads the ledger again after it so the footer
+and the `cost` output cover both.
 
 **Secrets are scrubbed from anything published.** fx never prints the key, but
 in write mode its shell tool is a child process and inherits the environment —
@@ -134,8 +162,9 @@ commentary. This is what makes the action model-agnostic.
 
 **One comment, updated.** A marker on the first line, invisible when rendered.
 GitHub keeps the edit history, so overwriting loses nothing. The comment step
-runs under `always()`: a red X with no comment is the worst outcome for someone
-who typed a command and walked away.
+runs under `!cancelled()`: a red X with no comment is the worst outcome for
+someone who typed a command and walked away, while a cancelled run, superseded
+by a newer comment, should post nothing.
 
 **Pull requests are drafts, and only carry what fx touched.** The draft state
 is the human-oversight step — the same reason `claude-code-action` stops at a
@@ -161,11 +190,45 @@ question cannot also be the switch.
 token for a named bot, and for CI to run on what it pushes. No hosted service,
 ever — that is the line between this and the opencode model.
 
+## fx facts checked against 0.0.8
+
+Verified against the binary, so nobody re-checks them from memory. Recheck
+when fx's version in a footer moves.
+
+- **`fx ask --system` replaces fx's built-in base prompt**, it does not
+  prepend. Moving the runtime block into `--system` would delete fx's own
+  instructions. Prepending, as `build-prompt.sh` does, is right.
+- **A checkout's `.mcp.json` is inert.** Project MCP servers start pending and
+  stay disconnected until trusted from the profile, which is fresh every job.
+  fx starts no process and reads no environment value for them. Do not "fix"
+  this with `fx mcp trust approve-all`.
+- **`fx background` does not exist**, though the CLI docs page lists it.
+  `fx resume` and `fx replay` exist but are missing from `fx --help`. This is
+  the concrete case behind "the binary's `--help` wins".
+- **`fx pr --create` is not a substitute for `open-pr.sh`.** It publishes
+  through `gh` with no branch, no `--draft`, no body file. Drafting the text
+  with `fx pr` and creating with `gh pr create --draft` is the split.
+- **Session JSON is `execution.schema_version` 3**, and `session-html.py`
+  depends on that shape: `history[].user.text`, `history[].assistant`,
+  `execution.tool_steps[].{assistant,tool_calls,tool_results}`,
+  `tool_calls[].{id,name,arguments_json,provider_result}`,
+  `tool_results[].{tool_call_id,tool_name,status,output,preview,truncated,
+  output_bytes,stored_output_bytes,provider_native,permission_feedback}`.
+  When the version moves, that file is what breaks.
+- **`fx doctor --json` runs no model call** and names `.fx.json` in its
+  `config` check when the checkout supplies one; the Configure step logs it.
+- **Subagents inherit the parent's restrictions**, so there is nothing to deny
+  for safety; they cost tokens the footer's `ask`-side counts miss, which is
+  the other reason tokens come from `fx usage`.
+- **No provider on the gateway's side frees a runner from the gateway key.**
+  Codex and Grok need a browser sign-in saved per machine; `VERCEL_OIDC_TOKEN`
+  is issued by a Vercel runtime, not a GitHub one.
+
 ## Do we need actions/toolkit?
 
 Not yet. Everything we use it for has a shell equivalent already on the runner:
 `$GITHUB_OUTPUT` for `core.setOutput`, `::error::`/`::warning::` for
-`setFailed`/`warning`, `gh api` for Octokit, `actions/cache@v4` as a step.
+`setFailed`/`warning`, `gh api` for Octokit, `actions/cache` as a step.
 
 The moment to switch is real API work shell makes awkward: review comments
 anchored to diff lines, pagination with retries, partial failure across several
