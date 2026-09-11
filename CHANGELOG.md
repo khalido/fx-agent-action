@@ -145,6 +145,13 @@ repo's own review found, and the reasons are worth keeping.
 - The session artifact shows provider-side web searches: the query, the
   domain filter and the date window the model sent to Exa, and what came
   back. They were invisible before, having no `tool_results` entry.
+- Five findings from an fx audit of the action itself (DeepSeek v4.1 flash,
+  35 steps, 12¢): the memory file was filtered out of pull requests only at
+  the repo root, not under a `working_directory`; a failing `fx usage` after
+  compaction could fail the memory step; a repo skill named like a shipped
+  one nested inside it instead of replacing it; `comment_key` went into a
+  jq filter unvalidated; `issues.json` titles skipped the hidden-markup
+  stripping. All fixed. The base block now tells the agent its step budget.
 - A PR diff the token cannot read is now a warning in the log and a line in
   the prompt, not a silently empty diff. A job whose permissions block omits
   `pull-requests: read` hit this on every PR.

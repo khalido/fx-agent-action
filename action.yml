@@ -195,7 +195,7 @@ inputs:
     default: 'true'
   working_directory:
     description: >-
-      The directory fx treats as its workspace. Read mode only — a pull request
+      The directory fx treats as its workspace, in every mode. A pull request
       is always built from the repository root, whatever this says.
     required: false
     default: '.'
@@ -334,6 +334,7 @@ runs:
         INPUT_TRIGGER: ${{ inputs.trigger }}
         INPUT_MODE: ${{ inputs.mode }}
         INPUT_SHELL: ${{ inputs.shell }}
+        MAX_STEPS: ${{ inputs.max_steps }}
         MEMORY_PATH: ${{ steps.memory.outputs.memory_path }}
         MEMORY_LINES: ${{ inputs.memory_lines }}
       run: bash "${{ github.action_path }}/scripts/build-prompt.sh"
@@ -445,6 +446,9 @@ runs:
           for d in "$src"/*/; do
             d="${d%/}"
             [ -f "$d/SKILL.md" ] || continue
+            # rm first: cp -R into an existing directory nests instead of
+            # replacing, so a repo's skill could never shadow a shipped one.
+            rm -rf "$HOME/.fx/skills/$(basename "$d")"
             cp -R "$d" "$HOME/.fx/skills/$(basename "$d")"
             names+=("$(basename "$d")")
           done

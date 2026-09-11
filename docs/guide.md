@@ -196,7 +196,10 @@ vercel ai-gateway api-keys create --name github-actions --limit 10 --refresh-per
 ```
 
 The footer on every comment has the model, tokens in and out, the cost in
-cents and the seconds, from fx's own ledger. A comment that gets rewritten
+cents and the seconds, from fx's own ledger. That ledger is per machine and
+the numbers assume a fresh HOME every job, which GitHub-hosted runners give
+you. On a self-hosted runner with a persistent HOME the figures and
+`max_cost` become cumulative; give each job its own HOME there. A comment that gets rewritten
 stacks its earlier runs underneath and a total. The script does the adding.
 
 Model choice is one input. `deepseek/deepseek-v4.1-flash` is the default; a

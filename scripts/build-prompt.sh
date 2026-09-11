@@ -153,10 +153,12 @@ fi
   printf 'checkout of this repository'
   [ -n "$issue" ] && printf ', triggered from #%s' "$issue"
   printf '.\n\n'
-  cat <<'TXT'
+  cat <<TXT
 Nothing here is interactive. Nobody answers a question you ask, there is no
 browser and no dev server to click, and nothing you start outlives this run.
-Work from what is in front of you and finish in one pass.
+Work from what is in front of you and finish in one pass. You have at most
+${MAX_STEPS:-30} tool calls; when you are close to that, stop and answer with
+what you have. An answer with a gap in it beats no answer.
 
 TXT
 
@@ -272,8 +274,22 @@ cat "$instruction" >> "$prompt_path"
 # left in the workspace as a file. Before the tree snapshot, so it never lands
 # in a pull request.
 if [ "$event_name" = "issues" ] && [ -n "${GH_TOKEN:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
-  if ! gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 300 \
+  if gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 300 \
        --json number,title,state,labels,createdAt > issues.json 2>"$RUNNER_TEMP/gh-issues.err"; then
+    # Titles are stranger-authored text the agent will read outside the
+    # fenced block, so they get the same hidden-markup stripping.
+    python3 - "$(dirname "$0")" issues.json <<'PYSAN'
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from sanitize import sanitize
+p = sys.argv[2]
+items = json.load(open(p))
+for it in items:
+    if isinstance(it.get('title'), str):
+        it['title'] = sanitize(it['title'])
+json.dump(items, open(p, 'w'), ensure_ascii=False)
+PYSAN
+  else
     echo "::warning::Could not fetch the issue list for issues.json: $(tr '\n' ' ' < "$RUNNER_TEMP/gh-issues.err")" >&2
     rm -f issues.json
   fi

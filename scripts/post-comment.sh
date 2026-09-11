@@ -15,6 +15,11 @@ set -euo pipefail
 # answer are different comments, each updated in place, not one overwriting
 # the other. The marker is matched whole, so `fx-agent-action -->` never
 # matches `fx-agent-action:note -->`.
+# The key goes into a jq filter below; keep it to what action.yml promises.
+if [ -n "${COMMENT_KEY:-}" ] && ! [[ "$COMMENT_KEY" =~ ^[A-Za-z0-9-]+$ ]]; then
+  echo "::error::comment_key may contain letters, digits and dashes only (got '$COMMENT_KEY')" >&2
+  exit 1
+fi
 MARKER="<!-- fx-agent-action${COMMENT_KEY:+:$COMMENT_KEY} -->"
 LIMIT=60000   # GitHub rejects a comment body over 65,536 characters with a 422
 body="$RUNNER_TEMP/fx-comment.md"

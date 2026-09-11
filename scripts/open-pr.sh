@@ -36,8 +36,8 @@ after=$(GIT_INDEX_FILE="$RUNNER_TEMP/fx-index-after" git write-tree)
 changed="$RUNNER_TEMP/fx-changed.z"
 git diff --name-only -z "$before" "$after" > "$changed"
 # The agent's memory file is saved to its own branch by memory.sh, never here.
-if grep -qz '^\.agent-memory/' "$changed" 2>/dev/null; then
-  grep -zv '^\.agent-memory/' "$changed" > "$changed.f" || true
+if grep -qzE '(^|/)\.agent-memory/' "$changed" 2>/dev/null; then
+  grep -zvE '(^|/)\.agent-memory/' "$changed" > "$changed.f" || true
   mv "$changed.f" "$changed"
 fi
 

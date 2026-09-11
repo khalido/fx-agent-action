@@ -105,7 +105,7 @@ save)
       echo "::warning::memory: compaction did not produce a usable file; keeping the agent's version at $lines lines." >&2
     fi
     # The compaction was a billed request; the footer should carry it.
-    spend=$(fx usage --json 2>/dev/null | jq -r '.totals.spend // empty')
+    spend=$(fx usage --json 2>/dev/null | jq -r '.totals.spend // empty' || true)
     [ -n "$spend" ] && out "cost=$spend"
   fi
 
