@@ -172,9 +172,11 @@ TXT
     if [ "${INPUT_SHELL:-false}" = "true" ]; then
       cat <<'TXT'
 You can read the repository, search the web, run commands and edit files: git
-log and git blame, the tests, a repro, a fix to see whether it holds. This
-checkout is scratch paper. Nothing you do to it is kept, committed or pushed,
-so report what you found, not what you changed.
+log and git blame, the tests, a repro, a small change to see whether it holds.
+This checkout is scratch paper. Nothing you do to it is kept, committed or
+pushed, so an experiment is worth doing and an implementation is not: if the
+answer needs real code, say what you would change and where, and stop. Report
+what you found, not what you changed.
 TXT
     else
       cat <<'TXT'

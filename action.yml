@@ -529,7 +529,14 @@ runs:
         # scratch paper and nothing is pushed, so warn and go on; write mode
         # stays strict, because the edited scripts would push with a token.
         if [ "$MODE" = "read" ] && [ "$(realpath "$GITHUB_ACTION_PATH")" = "$(realpath "$GITHUB_WORKSPACE")" ]; then
-          echo "::warning::fx edited this action's own files in a scratch run on the action's own repo: $changed. Nothing is pushed in read mode; continuing." >&2
+          # Put the committed scripts back before the steps that hold a token
+          # run them. Scratch edits are thrown away anyway; this makes sure the
+          # ones to the action itself are thrown away first. Seen live: an
+          # agent rewrote memory.sh while answering a question about it, and
+          # the Save memory step then ran the agent's version.
+          git -C "$GITHUB_WORKSPACE" checkout -q -- action.yml scripts
+          git -C "$GITHUB_WORKSPACE" clean -fdq -- scripts
+          echo "::warning::fx edited this action's own files in a scratch run on the action's own repo: $changed. Reverted to the committed versions before continuing." >&2
           exit 0
         fi
         echo "::error::fx changed this action's own files during the run: $changed. Refusing to open a PR or post with them." >&2
