@@ -61,7 +61,11 @@ python3 -c "import sys; sys.path.insert(0, '$(dirname "$0")'); import redact; \
 # main agent, while the ledger includes helper models and provider tools,
 # which is what the dollars cover. One source for both numbers in the footer.
 usage=$(fx usage --json 2>/dev/null || true)
-cost=$(printf '%s' "$usage" | jq -r '.totals.spend // empty' 2>/dev/null || true)
+# cost.sh: the ledger's dollars, or a list-price estimate from tokens when the
+# ledger says zero (a BYOK key). Prints cost= and cost_estimated= lines.
+cost_lines=$(bash "$(dirname "$0")/cost.sh" 2>/dev/null || true)
+cost=$(printf '%s\n' "$cost_lines" | sed -n 's/^cost=//p')
+cost_estimated=$(printf '%s\n' "$cost_lines" | sed -n 's/^cost_estimated=//p')
 ledger_in=$(printf '%s' "$usage" | jq -r '.totals.input_tokens // empty' 2>/dev/null || true)
 ledger_out=$(printf '%s' "$usage" | jq -r '.totals.output_tokens // empty' 2>/dev/null || true)
 [ -n "$ledger_in" ] && in_tokens="$ledger_in"
@@ -78,6 +82,7 @@ delim="FX_EOF_$(openssl rand -hex 12 2>/dev/null || date +%s%N)"
   echo "response_path=$response_path"
   echo "result_path=$out"
   echo "cost=$cost"
+  echo "cost_estimated=${cost_estimated:-false}"
   echo "steps=$steps"
   echo "duration=$duration"
   echo "fx_version=$fx_version"

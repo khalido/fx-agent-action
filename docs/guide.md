@@ -205,6 +205,12 @@ you. On a self-hosted runner with a persistent HOME the figures and
 `max_cost` become cumulative; give each job its own HOME there. A comment that gets rewritten
 stacks its earlier runs underneath and a total. The script does the adding.
 
+If you add your own provider key to the gateway (BYOK), two things change.
+The gateway bills nothing for those calls, so your gateway budget no longer
+caps that model's spend; the provider's own account does. And fx's ledger
+records zero, so the footer shows a list-price estimate from the tokens,
+marked `≈`, without peak-hour multipliers or cache discounts.
+
 Speed varies with who serves the model. The gateway routes a request for
 `deepseek/deepseek-v4.1-flash` to any of nine providers at different prices
 and speeds, and fx exposes no way to pin one. What does pin it: add your own

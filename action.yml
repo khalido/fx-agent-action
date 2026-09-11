@@ -616,6 +616,7 @@ runs:
         COMMENT_KEY: ${{ inputs.comment_key }}
         MODEL: ${{ steps.configure.outputs.model }}
         COST: ${{ steps.memory_save.outputs.cost || steps.pr.outputs.cost || steps.run.outputs.cost }}
+        COST_ESTIMATED: ${{ steps.memory_save.outputs.cost_estimated || steps.pr.outputs.cost_estimated || steps.run.outputs.cost_estimated }}
         DURATION: ${{ steps.run.outputs.duration }}
         IN_TOKENS: ${{ steps.run.outputs.input_tokens }}
         OUT_TOKENS: ${{ steps.run.outputs.output_tokens }}

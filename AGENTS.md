@@ -32,6 +32,7 @@ before a change ships, and `gh`, `jq` and `python3` are already on every runner.
 | `scripts/redact.py` | the secret scrubber, shared by the answer and the session |
 | `scripts/post-comment.sh` | upsert one comment, found by a hidden marker |
 | `scripts/open-pr.sh` | branch, commit, push, open the draft PR |
+| `scripts/cost.sh` | the run's dollars from fx's ledger, or a list-price estimate from tokens when the ledger says zero (BYOK); used after `fx ask`, `fx pr` and a memory compaction |
 | `scripts/memory.sh` | `fetch` the memory file from its branch before the run, `save` it after, compacting when over the cap |
 
 If a change wants another file, ask whether it belongs in the prompt instead.
@@ -191,6 +192,13 @@ workflow. The prompt follows KO's own six-day memory-contract experiment in
 churn, an edit-in-place, delete-stale, earn-its-place contract produced
 durable entries. `open-pr.sh` filters `.agent-memory/` out of the PR
 pathspec. The survey behind the choice of store is `docs/agent-memory.md`.
+
+**Under BYOK the ledger says zero, so the footer estimates.** KO added a
+DeepSeek key to the gateway (2026-09-11); the gateway then answers with
+`cost: 0, is_byok: true` and fx's ledger records no spend, though it still
+has per-model tokens. `cost.sh` multiplies those by the public catalog's list
+prices and marks the figure estimated, shown as `≈` in the footer. The
+gateway budget no longer caps that model; the provider's account does.
 
 **Cost and tokens come from `fx usage --json`, not from `fx ask`.** `ask`
 reports tokens and no price, and only the main agent's tokens: subagents, the

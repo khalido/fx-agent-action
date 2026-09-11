@@ -108,8 +108,8 @@ git push -q "https://x-access-token:${GH_TOKEN}@${host}/${GITHUB_REPOSITORY}.git
 # `fx pr` was a second billed model request, after run-fx.sh read the ledger.
 # Read it again here so the footer and max_cost see the true total; the
 # runner's HOME is fresh, so the ledger holds only this job's spend.
-cost=$(fx usage --json 2>/dev/null | jq -r '.totals.spend // empty' || true)
-[ -n "$cost" ] && echo "cost=$cost" >> "$GITHUB_OUTPUT"
+# The ledger again, now with the fx pr request in it; estimated under BYOK.
+bash "$(dirname "$0")/cost.sh" >> "$GITHUB_OUTPUT" 2>/dev/null || true
 
 # The draft is model output and has not been through run-fx.sh's scrubber.
 python3 -c "import sys; sys.path.insert(0, sys.argv[2]); import redact; redact.redact_file(sys.argv[1])" \
