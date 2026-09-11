@@ -294,11 +294,15 @@ when fx's version in a footer moves.
 - **Subagents inherit the parent's restrictions**, so there is nothing to deny
   for safety; they cost tokens the footer's `ask`-side counts miss, which is
   the other reason tokens come from `fx usage`.
-- **fx exposes no gateway provider routing.** The gateway picks among nine
-  providers for a DeepSeek model, at different speeds, and
-  `providerOptions.gateway.{order,only,sort}` is per request in the SDK,
-  nowhere in fx's settings or flags. BYOK for a provider makes the gateway
-  use that provider first; that is the only pin available today.
+- **fx exposes no gateway provider routing, tested.** The gateway picks among
+  nine providers for a DeepSeek model, at different speeds, and honours
+  `providerOptions.gateway.{order,only,sort}` per request: a direct call with
+  `only: ["no-such-provider"]` errors and lists the nine. The same setting
+  under `provider_options`, `providerOptions` or `gateway` in
+  `~/.fx/settings.json` is ignored silently, the request succeeds, and fx
+  warns about none of the unknown keys (2026-09-11, fx 0.0.8). BYOK for a
+  provider makes the gateway use that provider first; that is the only pin
+  available today. A feature request is drafted in the session scratchpad.
 - **No provider on the gateway's side frees a runner from the gateway key.**
   Codex and Grok need a browser sign-in saved per machine; `VERCEL_OIDC_TOKEN`
   is issued by a Vercel runtime, not a GitHub one.
