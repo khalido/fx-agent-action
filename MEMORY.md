@@ -1,3 +1,4 @@
+- 2026-09-11: our run edited the top.
 # Agent memory
 
 What earlier agent runs learned about this repository: how it is laid out,
