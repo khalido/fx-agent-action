@@ -222,19 +222,18 @@ the run.** The `Run fx` step has no `GH_TOKEN`, the examples check out with
 `persist-credentials: false`, and only `open-pr.sh` pushes, to a branch, with
 the token in the URL. That leaves one route to the default branch in write
 mode: fx, with a full shell, editing `open-pr.sh` under `_actions/` before it
-runs. So `Note the working tree` also hashes the action's `action.yml` and
-`scripts/` into a step output, which lives in the runner's memory, and an
-inline step after fx recomputes it and fails the run on a mismatch; the PR
-and comment steps are gated on it. Inline because a script would be read from
-the directory being checked. Per-file hashes, so the error names the file,
-and `__pycache__` skipped, because the first live run tripped on the agent
-running this repo's own `py_compile` check. With `uses: ./` the action path is
-the checkout, so a scratch-mode note here that edits `scripts/` gets a warning
-and continues; write mode stays strict on every repo. Branch protection is
-still the real answer; this is for the free-plan private repo that cannot have
-it. It does not defend
-against an agent with `sudo` replacing `sha256sum`, and nothing on the runner
-could.
+runs. So before any run that can write to disk, `Fingerprint the action`
+hashes the action's `action.yml` and `scripts/` per file into a step output,
+which lives in the runner's memory, and an inline step after fx recomputes it
+and fails the run on a mismatch, naming the file; the PR, memory and comment
+steps are gated on it. Inline because a script would be read from the
+directory being checked. `__pycache__` is skipped because the first live run
+tripped on the agent running this repo's own `py_compile` check. With
+`uses: ./` the action path is the checkout, so a scratch-mode note here that
+edits `scripts/` gets a warning and continues; write mode stays strict on
+every repo. Branch protection is still the real answer; this is for the
+free-plan private repo that cannot have it. It does not defend against an
+agent with `sudo` replacing `sha256sum`, and nothing on the runner could.
 
 "What fx touched" is the difference between two **tree objects**, written to a
 scratch index before and after the run. Diffing `git status` text instead looks
@@ -303,7 +302,7 @@ ships a `dist/index.js` measured in hundreds of kilobytes. If it does become a
 JS action, do it wholesale — a composite that shells out to `node` is the worst
 of both.
 
-## Prior art
+## Docs and prior art
 
 `docs/guide.md` is the long-form user doc, the README's other 20%; keep it
 true when a behaviour changes. `docs/agent-memory.md` is the survey behind the
@@ -355,10 +354,17 @@ For the built-in note, `GITHUB_EVENT_NAME=issues` with `INPUT_PROMPT` unset;
 fail until listed, and a `schedule` event should skip the write check.
 
 `python3 -c 'from scripts.sanitize import sanitize'` for the sanitizer, with the
-cases listed in its docstring. Then end to end: push a branch, point a workflow
-at `uses: khalido/fx-agent-action@<branch>`, comment on a throwaway issue.
+cases listed in its docstring. `scripts/memory.sh fetch` and `save` run against
+the real `agent-memory` branch of `GITHUB_REPOSITORY`, so test them in a scratch
+git directory and expect a commit on the branch. Then end to end: push a
+branch, point a workflow at `uses: khalido/fx-agent-action@<branch>`, comment
+on a throwaway issue.
 
-Run `shellcheck scripts/*.sh` and `actionlint` before pushing.
+Run `shellcheck scripts/*.sh` and `actionlint` before pushing. An fx audit of
+the action itself is worth its ten cents after a large change: run `fx ask` in
+this checkout with scratch-mode rules and a brief that asks for defects ranked
+by severity, then check every finding against the code before fixing it. The
+first one found six real defects in an afternoon's work.
 
 ## References
 
@@ -387,6 +393,7 @@ tags by hand** — `.github/workflows/release-tag.yml` does it on
 `actions/*` this action and its workflows pin current
 (`.github/dependabot.yml`); a bump there is a PATCH unless it changes an input.
 
-`.github/workflows/check.yml` runs shellcheck, actionlint and the sanitizer's
-cases on every push. That is the whole test suite, and it is aimed at the bugs
-this repo actually ships: shell quoting and action metadata.
+`.github/workflows/check.yml` runs on every push: shellcheck, actionlint, the
+dogfood-drift diff, the prompt cascade with a fake issue event, the skills'
+frontmatter, and the sanitizer's cases. That is the whole test suite, aimed at
+the bugs this repo actually ships: shell quoting and action metadata.

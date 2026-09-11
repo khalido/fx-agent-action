@@ -1,167 +1,74 @@
 # Changelog
 
-What changed in each version, newest first. The format is
-[Keep a Changelog](https://keepachangelog.com/en/2.0.0/); the versions are
-[SemVer](https://semver.org), because `uses: khalido/fx-agent-action@v1` is a
-compatibility promise — see `.claude/skills/release/SKILL.md` for what counts
-as a break.
+What changed, newest first, in the format of
+[Keep a Changelog](https://keepachangelog.com/en/2.0.0/). Versions are
+[SemVer](https://semver.org): `uses: khalido/fx-agent-action@v1` is a
+compatibility promise. `.claude/skills/release/SKILL.md` says what counts as a
+break and how a release is cut.
 
 ## [Unreleased]
 
 ### Added
 
-- Run fx on a GitHub issue or PR and post the answer as one comment, found and
-  edited in place by a hidden marker rather than stacked under every run.
-- The trigger is `/fx` by default, matched as a whole word anywhere in the
-  comment rather than as a prefix; the request is what follows it, and quoted
-  lines do not count. A slash phrase rather than a mention because `@fx` is a
-  real person on GitHub. The `trigger` input takes any phrase, or several at
-  once, comma-separated.
-- Two checks on who asked, before anything else, and the run fails if either
-  says no: write access to the repository on issue and PR events, and a human
-  actor on every event. `allowed_non_write_users` and `allowed_bots` are the
-  exceptions. The same two checks `claude-code-action` runs.
-- `/fx pr <what to build>` gets the edit and shell tools and opens a
-  **draft** pull request from whatever the agent left in the working tree. `pr`
-  is the only word that does this: `do`, `build` and `fix` can each start a
-  question, and a word that can begin a question cannot also switch writing
-  on.
-- 👀 on the trigger comment, or on the issue itself when a new or edited issue
-  is the trigger, taken off when the answer lands.
-- The footer reads fx · model · tokens · cost · time · run, cost in cents.
-  A comment that is rewritten keeps a hidden ledger of its runs and stacks
-  the earlier ones under the newest with a total, so five edits show five
-  costs and their sum. The script does the adding; the model is never asked.
-- The whole session as one self-contained HTML file on the run page — every
-  tool call, its arguments and its result — kept for a week.
-- `examples/fx.yml`, the one file to copy into a repo: a note on every issue
-  opened or edited, refreshed in place, plus `/fx` questions and `/fx pr` on
-  issues and PRs. This repo runs the same file on itself, and CI fails if the
-  two copies drift.
-- `shell: true`: the shell and the edit tools in read mode too, so the agent
-  can run `git log`, try a fix and run the tests before it answers, with
-  nothing committed; the checkout is scratch paper. Refused together with
-  `allowed_non_write_users`, and with an allowed bot on an issue or PR event,
-  because a shell can read the key and the bot's text is the instruction.
-- A run in which fx could write to disk, write mode or `shell: true`, that
-  finds fx has changed the action's own `action.yml` or
-  `scripts/` stops before opening a PR or posting, since those scripts run
-  next with a token that can push. fx's own process never holds that token.
-  Branch protection is still the answer where it exists; this is for the
-  free-plan private repo that cannot have it.
-- A cancelled run, one superseded by a newer comment mid-edit, no longer
-  pushes its half-finished edits or posts a "failed" comment. A failed run
-  still does both, on purpose.
-- The note prompt is built into the action, `prompts/issue.md`, and
-  runs on any `issues` event that gives no other instruction; the action also
-  fetches the `issues.json` it cites. A repo replaces the note by adding
-  `.github/fx/issue.md`, and puts facts about itself in `AGENTS.md`,
-  which fx reads on every run. `examples/fx.yml` shrinks to wiring, and a
-  better note here reaches every repo on its next run.
-- `prompt_file` falls back, with a notice, when the file is absent, so one
-  workflow file serves many repos and a repo overrides the prompt by adding a
-  file rather than editing YAML.
-- The base block tells the agent nothing is interactive: nobody answers, no
-  browser, no dev server, nothing it starts outlives the run. A repo's
-  `AGENTS.md` written for a laptop can say "run the app and click"; this is
-  what stops the agent trying.
-- The default model is `deepseek/deepseek-v4.1-flash`: the same price per
-  token as `zai/glm-5.3-flash` within a fraction of a cent and better on
-  every measure that mattered here. It works harder per run, so a note costs
-  more than it did on GLM. `model` overrides it in one line.
-- Memory, on by default: one `MEMORY.md` on an orphan `agent-memory` branch, fetched
-  into the workspace before the run, quoted in the prompt, edited by the
-  agent with its ordinary tools, pushed back after the run if it changed.
-  Concurrent runs merge three ways on a 409. Over `memory_lines` the action
-  compacts it with one extra call on the same model. `memory_repo` points
-  it at an org's `.github` repo for one memory across an org. Never fails
-  the run; never lands in a pull request.
-- Skills. The action ships its own under `skills/` and copies them, with any
-  under the repo's `.github/fx/skills/`, into fx's skill directory on the
-  runner, so they exist for this agent in this run and nowhere else.
-  `skills: false` turns it off. The first is `compare-models`: a model's id
-  and price from the gateway catalog, what people hit with it in the last
-  six months, whether it fits the repo's jobs, and a small, capped test if
-  asked.
-- `effort` input, for models that take a reasoning effort. `pr_model`, so a
-  write run can use a stronger model than a question does: one rule, decided
-  by the workflow, never by the model.
-- The settings written for fx now include `max_agent_steps`,
-  `max_tool_result_bytes` and `context`, so a checked-out `.fx.json` cannot
-  change them, and the mode, model and rules are read back before the run:
-  a settings file fx cannot parse is dropped whole and silently, and this
-  catches that instead of running on defaults.
-- The fx version comes from the same `latest.txt` the installer reads, and is
-  passed to the installer, so the cache key and the binary always agree.
-- The cost in the footer and on the `cost` output includes the `fx pr` draft,
-  which was a second billed request read too late before. Footer tokens come
-  from the same ledger as the dollars, so both cover helper models and web
-  search.
-- The session artifact shows why a tool call was held or denied, and when a
-  result was truncated.
-- `comment_key`, so two fx jobs on one thread keep separate comments: the
-  issue note is not overwritten by a `/fx` answer, or the other way round.
-- Five more examples: issue notes, PR review, triage from the repo's real
-  labels, `/fx pr` alone, and a weekly dependency bump that runs your own
-  checks and writes one PR instead of eight.
-- `prompt_file`, so the agent's instructions live in your repo, not in YAML.
-- Secrets are scrubbed from the answer, the commit and the session artifact.
-  fx never prints the gateway key, but in write mode its shell tool inherits
-  the environment, and GitHub masks secrets in logs — not in API bodies.
-- Hidden markup is stripped out of the untrusted GitHub text before the model
-  sees it: HTML comments, zero-width characters, image alt text, hidden
-  attributes.
-- Cost in the footer, from `fx usage`, which reports dollars where `fx ask`
-  reports only tokens.
-- `docs/prior-art.md`: what the other coding-agent actions do on trigger,
-  actor checks, auth, output and safety, the recipes they document, and where
-  this one differs on purpose.
+- One comment per job, found by a hidden marker and edited in place, with a
+  footer: fx, model, tokens, cost in cents, seconds, run link, and earlier
+  runs stacked with a total when a comment is rewritten.
+- `/fx` as the trigger, a whole word anywhere in a comment, quoted lines
+  skipped; `trigger` takes several phrases. `/fx pr …` is the only phrase
+  that turns writing on and ends in a draft pull request carrying exactly
+  what fx changed.
+- Two checks before anything runs, and a no fails the run: write access on
+  issue and PR events, a human actor on every event. `allowed_non_write_users`
+  and `allowed_bots` are the exceptions, read mode only.
+- A built-in note prompt, `prompts/issue.md`, used on every issue opened or
+  edited by someone with write access; `.github/fx/issue.md` in a repo
+  replaces it. Repo facts go in `AGENTS.md`, which the base block says may
+  add to or adjust the task.
+- Three modes: read; scratch (`shell: true`), read plus a shell and edits
+  that are thrown away; write (`pr`), full access in the runner.
+- Memory, on by default: one `MEMORY.md` on an `agent-memory` branch,
+  fetched before the run, edited by the agent with its ordinary tools, pushed
+  back after, three-way merged on a concurrent write, compacted by one extra
+  model call when over `memory_lines`. `memory_repo` gives an org one memory.
+- Skills: the action ships `skills/compare-models` and copies it, with a
+  repo's `.github/fx/skills/`, into fx's skill directory on the runner.
+- The session as one HTML file on the run, kept a week, including web
+  searches with the exact date window and domain filter sent.
+- Inputs `model`, `pr_model`, `effort`, `max_steps`, `max_cost`,
+  `comment_key`, `prompt`, `prompt_file`, `include_thread`, `include_diff`,
+  `github_token`, `working_directory`, `session_artifact`, `skills`.
+- 👀 on the trigger comment or issue while the run is going.
+- `examples/fx.yml`, the one file to copy, run by this repo on itself; five
+  more examples; `docs/guide.md` for the rest; `docs/prior-art.md` and
+  `docs/agent-memory.md` as the surveys behind the choices.
+
+### Changed
+
+- Default model is `deepseek/deepseek-v4.1-flash` for every task, replacing
+  `zai/glm-5.3-flash` (2026-09-10). Same input price, a fifth more on output,
+  better work.
+- The examples check out with `fetch-depth: 0`, so `git log` and `git blame`
+  have history.
+- `examples/fx.yml` sets concurrency per job; at workflow level `github.job`
+  is empty and a comment during a note cancelled the note.
+
+### Security
+
+- fx's process never holds a GitHub token. Before a run that can write to
+  disk, the action fingerprints its own `action.yml` and `scripts/`; a
+  mismatch afterwards stops the steps that hold a token.
+- Hidden markup is stripped from the thread, the diff and `issues.json`
+  titles before the model sees them. Secrets are scrubbed from the answer,
+  the commit and the session artifact.
+- Settings fx cannot parse, or rules that did not register, fail the run
+  before it spends anything.
 
 ### Fixed
 
-Before the first release, so nobody hit these — but they are the bugs this
-repo's own review found, and the reasons are worth keeping.
-
-- A pull request now carries what fx touched and nothing else, measured as the
-  difference between two git tree objects. Diffing `git status` text dropped an
-  edit to a file that was already dirty, and missed everything created inside a
-  pre-existing untracked directory.
-- A path with a space or an accent no longer kills the run after the agent has
-  done the work: git C-quotes those, and the quoted form failed as a pathspec.
-- The pull-request step survives a failed run, so edits made before the cost
-  tripwire fired are not thrown away with the runner.
-- The attribute stripper only runs inside HTML tags. It was rewriting
-  `const title = "My Post";` out of the diffs it handed a PR review.
-- Reference-style image alt text (`![…][ref]`) is neutralised like the inline
-  kind.
-- The session artifact survives a session with an empty history.
-- Redaction reads the environment rather than a hand-kept list of names, which
-  had grown three entries that were never set.
-- The fx release tag is resolved through `gh api` with the job's token rather
-  than anonymous `api.github.com`, whose 60-an-hour limit is shared with every
-  job on the runner.
-- `FX_AUTO_UPGRADE=0` for the job, so the binary restored from cache does not
-  download and replace itself mid-run.
-- The session artifact shows provider-side web searches: the query, the
-  domain filter and the date window the model sent to Exa, and what came
-  back. They were invisible before, having no `tool_results` entry.
-- Five findings from an fx audit of the action itself (DeepSeek v4.1 flash,
-  35 steps, 12¢): the memory file was filtered out of pull requests only at
-  the repo root, not under a `working_directory`; a failing `fx usage` after
-  compaction could fail the memory step; a repo skill named like a shipped
-  one nested inside it instead of replacing it; `comment_key` went into a
-  jq filter unvalidated; `issues.json` titles skipped the hidden-markup
-  stripping. All fixed. The base block now tells the agent its step budget.
-- A PR diff the token cannot read is now a warning in the log and a line in
-  the prompt, not a silently empty diff. A job whose permissions block omits
-  `pull-requests: read` hit this on every PR.
-- The examples check out with `fetch-depth: 0`. The default shallow clone
-  gave `git log -S` and `git blame` one commit to work with, which the
-  agent's own first memory entry noted as a dead end.
-- `examples/fx.yml` sets concurrency per job. At workflow level `github.job`
-  is empty, so the note and the comment jobs on one issue shared a group and
-  any comment during a note cancelled the note.
-- The push in `open-pr.sh` uses `GITHUB_SERVER_URL` instead of a hard-coded
-  `github.com`, so it works on GitHub Enterprise Server.
+Before the first release, from this repo's own reviews and from fx auditing
+the action: the PR carries only what fx touched, measured as a tree diff;
+paths with spaces survive; the cost includes the `fx pr` draft; a PR diff
+the token cannot read is a warning, not an empty diff; the memory file never
+lands in a PR at any depth; a repo skill can shadow a shipped one.
 
 [Unreleased]: https://github.com/khalido/fx-agent-action/commits/main
