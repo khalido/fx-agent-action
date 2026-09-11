@@ -16,9 +16,6 @@ on:
     types: [opened, edited]
   issue_comment:
     types: [created]
-concurrency:
-  group: fx-${{ github.workflow }}-${{ github.job }}-${{ github.event.issue.number }}
-  cancel-in-progress: true
 jobs:
   note:
     if: >-
@@ -27,6 +24,9 @@ jobs:
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: fx-note-${{ github.event_name }}-${{ github.event.issue.number }}
+      cancel-in-progress: true
     permissions:
       contents: read
       issues: write
@@ -49,6 +49,9 @@ jobs:
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: fx-comment-${{ github.event_name }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write

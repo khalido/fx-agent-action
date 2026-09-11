@@ -24,11 +24,6 @@ on:
   issue_comment:
     types: [created]
 
-concurrency:
-  # Per job as well as per issue, so a /fx comment does not cancel a note.
-  group: fx-${{ github.workflow }}-${{ github.job }}-${{ github.event.issue.number }}
-  cancel-in-progress: true   # a burst of edits: the last one wins
-
 jobs:
   # The note. Fixed prompt, one comment per issue that the action finds by its
   # marker and rewrites, so an edited issue gets a fresh note in the same
@@ -46,6 +41,13 @@ jobs:
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Concurrency per job, not per workflow: at workflow level `github.job` is
+    # empty, so both jobs shared one group and a comment during a note
+    # cancelled the note. The event name keeps a skipped job on another event
+    # out of a running job's group.
+    concurrency:
+      group: fx-note-${{ github.event_name }}-${{ github.event.issue.number }}
+      cancel-in-progress: true   # a burst of edits: the last one wins
     permissions:
       contents: read
       issues: write
@@ -81,6 +83,11 @@ jobs:
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Queue rather than cancel: a plain comment starts a run this job skips,
+    # and a skipped job must never take out a /fx answer in progress.
+    concurrency:
+      group: fx-comment-${{ github.event_name }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
     # `contents: write` is what lets `/fx pr` push a branch. It also lets a job
     # push to your default branch; branch protection is what stops that.
     permissions:

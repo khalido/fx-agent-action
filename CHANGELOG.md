@@ -138,6 +138,9 @@ repo's own review found, and the reasons are worth keeping.
 - The session artifact shows provider-side web searches: the query, the
   domain filter and the date window the model sent to Exa, and what came
   back. They were invisible before, having no `tool_results` entry.
+- `examples/fx.yml` sets concurrency per job. At workflow level `github.job`
+  is empty, so the note and the comment jobs on one issue shared a group and
+  any comment during a note cancelled the note.
 - The push in `open-pr.sh` uses `GITHUB_SERVER_URL` instead of a hard-coded
   `github.com`, so it works on GitHub Enterprise Server.
 
