@@ -1,6 +1,8 @@
 <!-- Survey by an Opus subagent, 2026-09-11, using KO's `ko` CLI for the
 web research. Reference for whoever works on the memory feature; the decision
-is tracked in the "Add agent memory" issue. Prices are as of the date above. -->
+is tracked in the "Add agent memory" issue. Prices are as of the date above.
+The branch shipped as `agent-memory`, not the `fx-memory` used below, so other
+agents can share it. -->
 
 # Memory for fx-agent-action — survey
 

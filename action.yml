@@ -351,10 +351,11 @@ runs:
     #          cannot write and the run still exits 0. A question has no
     #          business running commands, and a model with no shell cannot
     #          read the runner's environment back to you.
-    #          With `shell: true`, the shell is ALLOWED by rule instead (no
-    #          automatic review, so no helper-model bill per command) and edit
-    #          stays denied. Commands can still write files, but nothing in
-    #          this mode is committed, so the checkout is scratch paper.
+    #          With `shell: true`, the shell AND the edit tools are allowed by
+    #          rule instead (no automatic review, so no helper-model bill per
+    #          call): scratch mode. Nothing in this mode is committed or
+    #          opened, so the checkout is scratch paper, and the memory file
+    #          is the one edit that outlives the run.
     #  write — `full-access`. The runner is a throwaway container and the real
     #          boundary is the workflow's token scope, so fx's own review layer
     #          only adds latency and a separate billed model request per

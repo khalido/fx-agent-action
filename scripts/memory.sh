@@ -61,8 +61,10 @@ fetch)
     echo "memory: no $branch branch in $repo yet; starting fresh" >&2
     out "memory=new"
   else
+    # Leave any existing file alone: the agent may run this script itself in
+    # a scratch run, and an API hiccup must not delete its memory copy.
     echo "::warning::memory: could not read $repo@$branch: $(printf '%s' "$resp" | jq -r '.message // .' 2>/dev/null | head -c 200). Running without memory." >&2
-    rm -rf "$dir"
+    [ -f "$file" ] || rmdir "$dir" 2>/dev/null || true
     out "memory=unavailable"
     exit 0
   fi

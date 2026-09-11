@@ -48,8 +48,8 @@ footer=$(printf '%s' "$runs" | jq -r '
   def cents: if . == null then "?" elif . >= 1 then "$" + (. * 100 | round / 100 | tostring) else ((. * 1000 | round) / 10 | tostring) + "¢" end;
   def k: if . == null then "?" elif . >= 1000 then ((. / 100 | round) / 10 | tostring) + "k" else tostring end;
   def secs: if . == null then "" else " · " + (tostring) + "s" end;
-  (.[-1]) as $n
   def mem: if .mem == "updated" then " · memory updated" elif .mem == "compacted" then " · memory compacted" else "" end;
+  (.[-1]) as $n
   | ["[fx](https://fx.sh) `\($n.m)` · \($n.i | k) in / \($n.o | k) out · \($n.c | cents)\($n.s | secs)\($n | mem) · [run](\($n.u))"]
   + [ .[:-1] | reverse | .[] | "earlier · \(.c | cents)\(.s | secs) · [run](\(.u))" ]
   + (if length > 1 then ["\(length) runs · \([.[].c | select(. != null)] | add | cents) total"] else [] end)
