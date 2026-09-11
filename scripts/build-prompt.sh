@@ -327,13 +327,20 @@ if [ -n "$issue" ]; then
     # head closing the pipe at the cap sends gh a SIGPIPE, and under
     # `set -o pipefail` that exit 141 would kill this script on any large PR.
     raw="$RUNNER_TEMP/fx-diff.txt"
-    gh pr diff "$issue" --repo "$GITHUB_REPOSITORY" > "$raw" 2>/dev/null || true
-    {
-      printf '\n\n## The diff\n\n```diff\n'
-      head -c 200000 "$raw"
-      [ "$(wc -c < "$raw")" -gt 200000 ] && printf '\n… diff truncated at 200 KB.\n'
-      printf '\n```\n'
-    } >> "$ctx"
+    if gh pr diff "$issue" --repo "$GITHUB_REPOSITORY" > "$raw" 2>"$RUNNER_TEMP/fx-diff.err"; then
+      {
+        printf '\n\n## The diff\n\n```diff\n'
+        head -c 200000 "$raw"
+        [ "$(wc -c < "$raw")" -gt 200000 ] && printf '\n… diff truncated at 200 KB.\n'
+        printf '\n```\n'
+      } >> "$ctx"
+    else
+      # Usually the token: a job whose permissions block omits
+      # `pull-requests: read` cannot read the diff. Say so, in the log and to
+      # the agent, rather than hand it an empty diff as if the PR were empty.
+      echo "::warning::Could not fetch the PR diff (the job may need pull-requests: read): $(tr '\n' ' ' < "$RUNNER_TEMP/fx-diff.err" | head -c 200)" >&2
+      printf '\n\n## The diff\n\nNot available to this run: the job token could not read it. Work from the files in the checkout.\n' >> "$ctx"
+    fi
   fi
 fi
 

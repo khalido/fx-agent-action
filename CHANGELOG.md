@@ -145,6 +145,9 @@ repo's own review found, and the reasons are worth keeping.
 - The session artifact shows provider-side web searches: the query, the
   domain filter and the date window the model sent to Exa, and what came
   back. They were invisible before, having no `tool_results` entry.
+- A PR diff the token cannot read is now a warning in the log and a line in
+  the prompt, not a silently empty diff. A job whose permissions block omits
+  `pull-requests: read` hit this on every PR.
 - The examples check out with `fetch-depth: 0`. The default shallow clone
   gave `git log -S` and `git blame` one commit to work with, which the
   agent's own first memory entry noted as a dead end.

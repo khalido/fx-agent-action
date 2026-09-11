@@ -71,7 +71,9 @@ writing on.
    event, the built-in note, [`prompts/issue.md`](../prompts/issue.md);
    otherwise the comment that triggered the run, minus the trigger phrase.
 3. **The thread**, fenced and labelled as evidence: title, body, comments, and
-   on a PR the diff, truncated at 200 KB.
+   on a PR the diff, truncated at 200 KB. Reading the diff needs
+   `pull-requests: read` on the job; without it the run warns and tells the
+   agent the diff was unavailable rather than handing it an empty one.
 
 Underneath, fx loads the repo's own `AGENTS.md` or `CLAUDE.md` the way it does
 on a laptop, and discovers skills in `skills/`, `.claude/skills/`,
