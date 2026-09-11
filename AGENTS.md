@@ -143,13 +143,18 @@ which is why `max_steps` is an input and not something a repo can raise.
 loads `AGENTS.md` from launch-ancestor directories, so the repo root's file
 still applies.
 
-**The note prompt lives in the action, not in the workflow.** It was forty
-lines of YAML prose in `examples/fx.yml`, frozen in every repo the day it was
-copied. Now `build-prompt.sh` loads `prompts/issue.md` on an `issues`
-event when no `prompt_file` exists and no `prompt` is set, and fetches the
-`issues.json` it cites, so a better note here is a better note everywhere on
-the next run. The cascade is: `prompt_file` if it exists, inline `prompt`,
-built-in note on issue events, else the triggering comment. A repo file is
+**The note prompt lives in the action, not in the workflow, and one job does
+everything.** The note was forty lines of YAML prose in `examples/fx.yml`,
+frozen in every repo the day it was copied, and the example had two jobs whose
+only real differences were the trigger and the prompt. Now `build-prompt.sh`
+loads `prompts/issue.md` on an `issues` event, or the repo's
+`.github/fx/issue.md` if it exists, and fetches the `issues.json` it cites;
+`post-comment.sh` keys the comment `note` on issue events so notes and
+answers stay separate comments. The cascade is: `prompt_file` if it exists,
+inline `prompt`, `.github/fx/issue.md` on issue events, built-in note on
+issue events, else the triggering comment. The repo file is checked by
+event and not through `prompt_file`, because a `prompt_file` on a job that
+also handles comments would swallow the comments. A repo file is
 a whole-task replacement, not an addition, on purpose: an additive block in
 front of a built-in task gives the model two output shapes to reconcile, and
 a file of pure repo facts is what `AGENTS.md` already is. Gemini's second
@@ -174,6 +179,10 @@ prompt, pushed back after the run if changed, with the blob sha so a
 concurrent run gets a 409 and a three-way merge rather than a lost write.
 No MCP tool, because a tool the model may choose to call means some runs
 write nothing; the agent uses its file tools and the action does the rest.
+Only runs whose actor has write access save it: `check-actor.sh` outputs
+`write_access`, the save step is gated on it, and the base block tells a
+non-writer's run the memory is read-only. Deterministic, so a stranger
+allowed through `allowed_non_write_users` cannot shape what future runs read.
 The branch is created through the git data API on first save, since the
 contents API cannot make one. Compaction is the action's decision, one
 `fx ask` when the file is over `memory_lines`, so nobody wires a second
@@ -285,6 +294,11 @@ when fx's version in a footer moves.
 - **Subagents inherit the parent's restrictions**, so there is nothing to deny
   for safety; they cost tokens the footer's `ask`-side counts miss, which is
   the other reason tokens come from `fx usage`.
+- **fx exposes no gateway provider routing.** The gateway picks among nine
+  providers for a DeepSeek model, at different speeds, and
+  `providerOptions.gateway.{order,only,sort}` is per request in the SDK,
+  nowhere in fx's settings or flags. BYOK for a provider makes the gateway
+  use that provider first; that is the only pin available today.
 - **No provider on the gateway's side frees a runner from the gateway key.**
   Codex and Grok need a browser sign-in saved per machine; `VERCEL_OIDC_TOKEN`
   is issued by a Vercel runtime, not a GitHub one.

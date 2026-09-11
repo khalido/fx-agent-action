@@ -228,6 +228,7 @@ runs:
     # event. The workflow's `if:` is still worth having — it saves booting a
     # runner — but it is a filter, and this is the check.
     - name: Check who asked
+      id: actor
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github_token }}
@@ -337,6 +338,7 @@ runs:
         MAX_STEPS: ${{ inputs.max_steps }}
         MEMORY_PATH: ${{ steps.memory.outputs.memory_path }}
         MEMORY_LINES: ${{ inputs.memory_lines }}
+        MEMORY_WRITABLE: ${{ steps.actor.outputs.write_access }}
       run: bash "${{ github.action_path }}/scripts/build-prompt.sh"
 
     # One config file per run, written globally (~/.fx/settings.json) rather
@@ -578,10 +580,12 @@ runs:
 
     # After the PR, so a compaction's spend is in the ledger before the footer
     # reads it; gated on the integrity check like everything that holds a
-    # token; never fails the run.
+    # token; never fails the run. And only when the actor has write access:
+    # an allowed stranger's or bot's run reads the memory and cannot change
+    # what future runs read. Deterministic, in the workflow, not the prompt.
     - name: Save memory
       id: memory_save
-      if: ${{ !cancelled() && steps.integrity.outcome != 'failure' && steps.memory.outputs.memory_path != '' }}
+      if: ${{ !cancelled() && steps.integrity.outcome != 'failure' && steps.memory.outputs.memory_path != '' && steps.actor.outputs.write_access == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working_directory }}
       env:

@@ -73,11 +73,16 @@ if [ -n "$is_bot" ]; then
 fi
 
 # --- write access -------------------------------------------------------------
+# Besides pass/fail, say whether the actor has write access: memory is saved
+# only from runs by people who do. A scheduled or manual run is the repo's own
+# automation, so it counts as write.
+passed() { echo "write_access=$1" >> "${GITHUB_OUTPUT:-/dev/null}"; exit 0; }
+
 case "$event" in
   issues|issue_comment|pull_request|pull_request_target|pull_request_review|pull_request_review_comment) ;;
   *)
     echo "Actor $actor passed on a $event event, which has no write check." >&2
-    exit 0
+    passed true
     ;;
 esac
 
@@ -91,7 +96,7 @@ if [ -n "$is_bot" ]; then
     echo "::error::Bot $actor is allowed by allowed_bots, but mode is '$mode' and shell is '$shell_tool'. On an issue or PR event a bot only combines with mode: read and no shell." >&2
     exit 1
   fi
-  exit 0
+  passed false
 fi
 
 # admin/write/read/none; maintain reads as write and triage as read. A 404 is
@@ -103,7 +108,7 @@ fi
 case "$permission" in
   admin|write)
     echo "Actor $actor has $permission access." >&2
-    exit 0
+    passed true
     ;;
 esac
 
@@ -116,7 +121,7 @@ if listed "$actor" "$allow_users"; then
     exit 1
   fi
   echo "::warning::$actor has $permission access and is allowed by allowed_non_write_users." >&2
-  exit 0
+  passed false
 fi
 
 echo "::error::$actor has $permission access to $GITHUB_REPOSITORY, and this run needs write. Add them to allowed_non_write_users to make an exception." >&2

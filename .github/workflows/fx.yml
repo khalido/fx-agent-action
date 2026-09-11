@@ -1,16 +1,18 @@
-# The one file to copy into a repo. Two jobs:
+# The one file to copy into a repo. One job, three things:
 #
 #   an issue is opened or edited  → one short note from something that has read
 #                                   the code and its history, refreshed in place
 #                                   when the issue changes
-#   /fx <question>                → an answer, read-only, on any issue or PR
+#   /fx <question>                → an answer, read-only with a scratch shell,
+#                                   on any issue or PR
 #   /fx pr <what to build>        → a draft pull request
 #
-# Copy it to .github/workflows/fx.yml, add the AI_GATEWAY_API_KEY secret, and
-# for `/fx pr` switch on Settings → Actions → General → "Allow GitHub Actions
-# to create and approve pull requests", which GitHub leaves off by default.
-# This repo runs the same file on itself with `uses: ./`; CI keeps the two
-# copies identical.
+# The action tells the three apart by event and by the word after /fx, so the
+# job does not have to. Copy it to .github/workflows/fx.yml, add the
+# AI_GATEWAY_API_KEY secret, and for `/fx pr` switch on Settings → Actions →
+# General → "Allow GitHub Actions to create and approve pull requests", which
+# GitHub leaves off by default. This repo runs the same file on itself with
+# `uses: ./`; CI keeps the two copies identical.
 #
 # No automatic PR review here on purpose. A PR you wrote with a stronger agent
 # does not need this one's opinion, and a PR fx wrote should not be graded by
@@ -25,80 +27,36 @@ on:
     types: [created]
 
 jobs:
-  # The note. Fixed prompt, one comment per issue that the action finds by its
-  # marker and rewrites, so an edited issue gets a fresh note in the same
-  # place. It has the shell and can edit files (git log, git blame, try a fix,
-  # run the one relevant test); nothing it does to the checkout is kept.
-  #
-  # Because of the shell, only issues from people with write access get a
-  # note: a shell can read the runner's environment, key included, so a
-  # stranger's issue must not drive it. The `if:` skips the rest without
-  # booting a runner; the action checks again.
-  note:
+  fx:
+    # Only people with write access, never a bot. The `if:` skips without
+    # booting a runner; the action checks both again and fails the run if
+    # either is wrong. On an issue event the note runs; on a comment, the
+    # phrase has to be there.
     if: >-
-      github.event_name == 'issues' &&
-      github.event.issue.user.type != 'Bot' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Concurrency per job, not per workflow: at workflow level `github.job` is
-    # empty, so both jobs shared one group and a comment during a note
-    # cancelled the note. The event name keeps a skipped job on another event
-    # out of a running job's group.
-    concurrency:
-      group: fx-note-${{ github.event_name }}-${{ github.event.issue.number }}
-      cancel-in-progress: true   # a burst of edits: the last one wins
-    # `contents: write` only so the memory file can be pushed to its branch;
-    # fx never holds this token. With `memory: false` this can be `read`.
-    permissions:
-      contents: write
-      issues: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          # Full history, so `git log -S` and `git blame` answer "this used
-          # to work". A second or two on a normal repo; set a depth on a huge one.
-          fetch-depth: 0
-
-      - uses: ./
-        env:
-          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
-        with:
-          mode: read
-          shell: true
-          comment_key: note
-          # Memory is on by default: one MEMORY.md on an `agent-memory`
-          # branch, what earlier runs learned about this repo, read before
-          # each run, edited by the agent, pushed back after. Delete the
-          # branch to forget; `memory: false` to turn it off.
-          # The note prompt is built into the action, prompts/issue.md,
-          # and improves for every repo when it improves there. To change it
-          # for this repo alone, add the file named here; it replaces the whole
-          # note. Facts about the repo belong in AGENTS.md, which fx reads on
-          # every run. Web search needs no key, and a limit in the prompt
-          # ("last six months") reaches Exa as real parameters.
-          prompt_file: .github/fx/issue.md
-
-  # Questions and `/fx pr`, on issues and pull requests alike. The action checks
-  # that the commenter has write access and is not a bot; the `if:` is the
-  # cheap version of the same filter, so a stranger's `/fx` on a public repo
-  # never boots a runner, let alone bills a model call.
-  comment:
-    if: >-
-      github.event_name == 'issue_comment' &&
-      contains(github.event.comment.body, '/fx') &&
-      github.event.comment.user.type != 'Bot' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      (
+        github.event_name == 'issues' &&
+        github.event.issue.user.type != 'Bot' &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+      ) || (
+        github.event_name == 'issue_comment' &&
+        contains(github.event.comment.body, '/fx') &&
+        github.event.comment.user.type != 'Bot' &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Queue rather than cancel: a plain comment starts a run this job skips,
-    # and a skipped job must never take out a /fx answer in progress.
+    # One group per event and issue. A burst of edits to an issue: the last
+    # note wins. Comments queue instead, so a plain comment (which this job
+    # skips) can never take out a /fx answer in progress. At workflow level
+    # `github.job` is empty, so keep this on the job.
     concurrency:
-      group: fx-comment-${{ github.event_name }}-${{ github.event.issue.number }}
-      cancel-in-progress: false
-    # `contents: write` is what lets `/fx pr` push a branch. It also lets a job
-    # push to your default branch; branch protection is what stops that.
+      group: fx-${{ github.event_name }}-${{ github.event.issue.number }}
+      cancel-in-progress: ${{ github.event_name == 'issues' }}
+    # `contents: write` is what lets `/fx pr` push a branch and the memory
+    # file reach its own branch. fx itself never holds this token, and
+    # branch protection is what stops a push to your default branch. For
+    # answers only: `contents: read`, drop `pull-requests`, add
+    # `memory: false`.
     permissions:
       contents: write
       pull-requests: write
@@ -110,11 +68,21 @@ jobs:
           # Full history, so `git log -S` and `git blame` answer "this used
           # to work". A second or two on a normal repo; set a depth on a huge one.
           fetch-depth: 0
+
       - uses: ./
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
         with:
+          # Scratch mode for questions and notes: a shell and edits that are
+          # thrown away, so the agent can run the tests or try a fix before
+          # it answers. `/fx pr` gets the full tool set and a draft PR.
           shell: true
           max_steps: '60'
+          # Nothing else to set. The note prompt is built in (prompts/issue.md
+          # in the action) and a repo replaces it by adding .github/fx/issue.md.
+          # Facts about the repo go in AGENTS.md. Memory is on: one MEMORY.md
+          # on an `agent-memory` branch that the agent reads and edits each
+          # run, saved only from runs by people with write access; delete the
+          # branch to forget, `memory: false` to turn it off.
           # To put code on a stronger model than questions, uncomment:
           # pr_model: anthropic/claude-sonnet-5

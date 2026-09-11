@@ -15,6 +15,11 @@ set -euo pipefail
 # answer are different comments, each updated in place, not one overwriting
 # the other. The marker is matched whole, so `fx-agent-action -->` never
 # matches `fx-agent-action:note -->`.
+# With no key, an issue event's comment is the note and a comment event's is
+# the answer, so one job keeps them apart without being told to.
+if [ -z "${COMMENT_KEY:-}" ] && [ "${GITHUB_EVENT_NAME:-}" = "issues" ]; then
+  COMMENT_KEY=note
+fi
 # The key goes into a jq filter below; keep it to what action.yml promises.
 if [ -n "${COMMENT_KEY:-}" ] && ! [[ "$COMMENT_KEY" =~ ^[A-Za-z0-9-]+$ ]]; then
   echo "::error::comment_key may contain letters, digits and dashes only (got '$COMMENT_KEY')" >&2

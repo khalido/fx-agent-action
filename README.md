@@ -17,42 +17,18 @@ on:
   issue_comment:
     types: [created]
 jobs:
-  note:
+  fx:
     if: >-
-      github.event_name == 'issues' &&
-      github.event.issue.user.type != 'Bot' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    concurrency:
-      group: fx-note-${{ github.event_name }}-${{ github.event.issue.number }}
-      cancel-in-progress: true
-    permissions:
-      contents: write
-      issues: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - uses: khalido/fx-agent-action@main
-        env:
-          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
-        with:
-          mode: read
-          shell: true
-          comment_key: note
-  comment:
-    if: >-
-      github.event_name == 'issue_comment' &&
-      contains(github.event.comment.body, '/fx') &&
-      github.event.comment.user.type != 'Bot' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      (github.event_name == 'issues' && github.event.issue.user.type != 'Bot' &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
+      || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/fx') &&
+          github.event.comment.user.type != 'Bot' &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
-      group: fx-comment-${{ github.event_name }}-${{ github.event.issue.number }}
-      cancel-in-progress: false
+      group: fx-${{ github.event_name }}-${{ github.event.issue.number }}
+      cancel-in-progress: ${{ github.event_name == 'issues' }}
     permissions:
       contents: write
       pull-requests: write
@@ -81,14 +57,15 @@ That is the setup: an [AI Gateway](https://vercel.com/ai-gateway) key with
 its own budget, made with the [Vercel CLI](https://vercel.com/docs/cli), the
 secret, and the switch GitHub leaves off that lets a workflow open a pull
 request. The same file with comments is [`examples/fx.yml`](examples/fx.yml);
-this repo runs it on itself. Only want answers? Drop the `note` job and change
-`contents` to `read`.
+this repo runs it on itself. One job: the action tells a new issue from a
+`/fx` comment by the event, and a question from `pr` by the word. Only want
+answers? Drop the `issues:` trigger, set `contents: read` and `memory: false`.
 
 ## What happens
 
 ```mermaid
 flowchart TD
-    I[Issue opened or edited<br/>by someone with write access] --> N[note job<br/>read + shell, built-in prompt]
+    I[Issue opened or edited<br/>by someone with write access] --> N[note<br/>read + shell, built-in prompt]
     N --> NC[One note comment<br/>rewritten in place on every edit]
     C["Comment containing /fx"] --> G{Write access<br/>and not a bot?}
     G -- no --> X[Run fails, nothing posted]
@@ -142,16 +119,18 @@ skills only this agent should have. `skills: false` turns the copy off.
 **Memory.** On by default: the agent keeps one `MEMORY.md` on an
 `agent-memory` branch: what earlier runs learned about this repo, read before
 each run, edited by the agent with its ordinary tools, pushed back after the
-run if it changed. A model of the repo, not a diary, and when it grows past
-`memory_lines` the action compacts it with one cheap call. Read it on the
+run if it changed, and only from runs by people with write access; an allowed
+stranger's run reads it and cannot change it. A model of the repo, not a
+diary, and when it grows past `memory_lines` the action compacts it with one
+cheap call. Read it on the
 branch, edit it yourself, or delete the branch to forget. Needs
 `contents: write` on the job for the push; fx never holds that token.
 
-**A different note goes in `.github/fx/issue.md`.** Set
-`prompt_file: .github/fx/issue.md` on the note job and, when the file exists,
-it replaces the built-in note whole. Start from the built-in text. `prompt`
-inline in the workflow does the same for a job that is not the note. For `/fx`
-comments the prompt is the comment.
+**A different note goes in `.github/fx/issue.md`.** When that file exists
+the action uses it on issue events instead of the built-in note, no input
+needed. Start from the built-in text. `prompt` or `prompt_file` on a job
+replaces the instruction for every event that job handles, for a job that is
+not the note. For `/fx` comments the prompt is the comment.
 
 ## Who can trigger a run
 

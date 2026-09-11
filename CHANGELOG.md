@@ -44,6 +44,13 @@ break and how a release is cut.
 
 ### Changed
 
+- `examples/fx.yml` is one job. The action tells a new issue from a `/fx`
+  comment by the event and keys the note and the answer as separate
+  comments; a repo's `.github/fx/issue.md` replaces the built-in note by
+  convention, no input needed.
+- Memory is saved only from runs whose actor has write access. A run allowed
+  through `allowed_non_write_users` or `allowed_bots` reads it and cannot
+  change it.
 - Default model is `deepseek/deepseek-v4.1-flash` for every task, replacing
   `zai/glm-5.3-flash` (2026-09-10). Same input price, a fifth more on output,
   better work.

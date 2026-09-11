@@ -91,9 +91,9 @@ it". A skill here improves for every repo on the next run, like the note.
 
 **To add to what the agent does in your repo**, write it in `AGENTS.md`. A
 `## In CI` section keeps bot instructions apart from laptop ones. **To change
-the note entirely**, add `.github/fx/issue.md` and set
-`prompt_file: .github/fx/issue.md` on the note job; the file replaces the
-built-in note whole. **For another kind of job**, `prompt` inline or a
+the note entirely**, add `.github/fx/issue.md`; on issue events the action
+uses it instead of the built-in note, with no input to set, so the same job
+still answers `/fx` comments from the comment. **For another kind of job**, `prompt` inline or a
 `prompt_file` of your own; the base block and the thread come free.
 
 ## Memory
@@ -107,8 +107,11 @@ lines rather than adding on top, bump a date when a run confirms a line, add
 a line only when a future run needs it, stay under the cap. The agent edits
 the file with its ordinary tools and knows nothing else about the mechanism.
 
-After the run, if the file changed, the action pushes it back through the
-contents API with the blob sha it fetched. A 409 means another run wrote
+After the run, if the file changed and the run's actor has write access to
+the repo, the action pushes it back through the contents API with the blob
+sha it fetched. A run allowed through `allowed_non_write_users` or
+`allowed_bots` reads the memory and cannot change it; that is decided by the
+actor check, not by the prompt. A 409 means another run wrote
 first; the action merges three ways and retries once, else warns. If the
 file is over `memory_lines` the action first makes one extra model call, on
 the same model, to compact it. Everything is non-fatal: a failed push loses
@@ -201,6 +204,13 @@ the numbers assume a fresh HOME every job, which GitHub-hosted runners give
 you. On a self-hosted runner with a persistent HOME the figures and
 `max_cost` become cumulative; give each job its own HOME there. A comment that gets rewritten
 stacks its earlier runs underneath and a total. The script does the adding.
+
+Speed varies with who serves the model. The gateway routes a request for
+`deepseek/deepseek-v4.1-flash` to any of nine providers at different prices
+and speeds, and fx exposes no way to pin one. What does pin it: add your own
+DeepSeek API key to the gateway as BYOK, which the gateway then uses first for
+that provider, with fallback to the pool. DeepSeek's own endpoint has peak
+pricing, double between 01:00 and 04:00 and 06:00 and 10:00 UTC on weekdays.
 
 Model choice is one input. `deepseek/deepseek-v4.1-flash` is the default; a
 note runs a few cents, a question about the same. `pr_model` puts write runs
