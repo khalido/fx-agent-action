@@ -145,6 +145,9 @@ repo's own review found, and the reasons are worth keeping.
 - The session artifact shows provider-side web searches: the query, the
   domain filter and the date window the model sent to Exa, and what came
   back. They were invisible before, having no `tool_results` entry.
+- The examples check out with `fetch-depth: 0`. The default shallow clone
+  gave `git log -S` and `git blame` one commit to work with, which the
+  agent's own first memory entry noted as a dead end.
 - `examples/fx.yml` sets concurrency per job. At workflow level `github.job`
   is empty, so the note and the comment jobs on one issue shared a group and
   any comment during a note cancelled the note.

@@ -38,6 +38,11 @@ Working on the action itself is a different job; that is [`AGENTS.md`](../AGENTS
 **Read** is what a `/fx` question gets by default. The edit and shell tools
 are hidden from the model by rule, so it never spends a step finding out.
 
+Check out with `fetch-depth: 0`, as the examples do. The default shallow
+clone leaves `git log` and `git blame` with one commit, and "this used to
+work, what changed?" is the question history answers. A full clone of an
+ordinary repo costs a second or two; set a depth only on a very large one.
+
 **Scratch** is read plus a shell and edits, nothing kept. The checkout is a
 throwaway container, and an agent that can try a fix and run the tests gives
 a better answer than one that guesses. The base block tells it to report what
