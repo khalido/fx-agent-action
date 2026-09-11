@@ -424,9 +424,15 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        sha=$(find "$GITHUB_ACTION_PATH/action.yml" "$GITHUB_ACTION_PATH/scripts" -type f -print0 \
-          | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-64)
-        echo "action_sha=$sha" >> "$GITHUB_OUTPUT"
+        # Per-file hashes, so a mismatch can name the file. __pycache__ is
+        # skipped: running the repo's own `py_compile` check creates it, and
+        # nothing here executes a .pyc.
+        {
+          echo "action_files<<FX_EOF"
+          find "$GITHUB_ACTION_PATH/action.yml" "$GITHUB_ACTION_PATH/scripts" -type f -not -path '*/__pycache__/*' -print0 \
+            | sort -z | xargs -0 sha256sum
+          echo "FX_EOF"
+        } >> "$GITHUB_OUTPUT"
 
     # The tree before fx touched it, so the PR carries only its changes.
     - name: Note the working tree
@@ -457,15 +463,26 @@ runs:
       if: ${{ !cancelled() && (steps.context.outputs.mode == 'write' || inputs.shell == 'true') }}
       shell: bash
       env:
-        BEFORE: ${{ steps.fingerprint.outputs.action_sha }}
+        BEFORE: ${{ steps.fingerprint.outputs.action_files }}
+        MODE: ${{ steps.context.outputs.mode }}
       run: |
         set -euo pipefail
-        after=$(find "$GITHUB_ACTION_PATH/action.yml" "$GITHUB_ACTION_PATH/scripts" -type f -print0 \
-          | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-64)
-        if [ -z "$BEFORE" ] || [ "$after" != "$BEFORE" ]; then
-          echo "::error::fx changed this action's own action.yml or scripts/ during the run. Refusing to open a PR or post with them; read the session artifact." >&2
-          exit 1
+        [ -n "$BEFORE" ] || { echo "::error::no fingerprint was taken before the run" >&2; exit 1; }
+        changed=$(diff <(printf '%s\n' "$BEFORE") \
+          <(find "$GITHUB_ACTION_PATH/action.yml" "$GITHUB_ACTION_PATH/scripts" -type f -not -path '*/__pycache__/*' -print0 \
+              | sort -z | xargs -0 sha256sum) \
+          | grep '^[<>]' | awk '{print $NF}' | sort -u | tr '\n' ' ') || true
+        [ -z "$changed" ] && exit 0
+        # Dogfood: with `uses: ./` the action path IS the checkout, and scratch
+        # mode lets the agent edit the checkout on purpose. In read mode that is
+        # scratch paper and nothing is pushed, so warn and go on; write mode
+        # stays strict, because the edited scripts would push with a token.
+        if [ "$MODE" = "read" ] && [ "$(realpath "$GITHUB_ACTION_PATH")" = "$(realpath "$GITHUB_WORKSPACE")" ]; then
+          echo "::warning::fx edited this action's own files in a scratch run on the action's own repo: $changed. Nothing is pushed in read mode; continuing." >&2
+          exit 0
         fi
+        echo "::error::fx changed this action's own files during the run: $changed. Refusing to open a PR or post with them." >&2
+        exit 1
 
     # The session as one HTML page, on the run. Both prior arts ship something
     # like this and it is the difference between "the note is wrong" and

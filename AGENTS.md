@@ -209,8 +209,13 @@ runs. So `Note the working tree` also hashes the action's `action.yml` and
 `scripts/` into a step output, which lives in the runner's memory, and an
 inline step after fx recomputes it and fails the run on a mismatch; the PR
 and comment steps are gated on it. Inline because a script would be read from
-the directory being checked. Branch protection is still the real answer; this
-is for the free-plan private repo that cannot have it. It does not defend
+the directory being checked. Per-file hashes, so the error names the file,
+and `__pycache__` skipped, because the first live run tripped on the agent
+running this repo's own `py_compile` check. With `uses: ./` the action path is
+the checkout, so a scratch-mode note here that edits `scripts/` gets a warning
+and continues; write mode stays strict on every repo. Branch protection is
+still the real answer; this is for the free-plan private repo that cannot have
+it. It does not defend
 against an agent with `sudo` replacing `sha256sum`, and nothing on the runner
 could.
 
