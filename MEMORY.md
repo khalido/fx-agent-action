@@ -30,3 +30,17 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
   memory.sh tells a 403 (token) from a 409 (race) on the push since f519a1e,
   a fix that came from the note on #3. Do not re-flag it: memory.sh:145-157
   now cases 403|404 vs 409 vs other.
+- 2026-09-11: The write-access gate KO asked for on #3 is already in the tree
+  since a0d3bf8 and lives in TWO places, not memory.sh: `check-actor.sh:79`
+  emits `write_access`, `action.yml:595` gates the Save memory step on it, and
+  `build-prompt.sh:199,252` (MEMORY_WRITABLE) turns the agent's edit
+  instruction on/off. Step-level `if:` is the determinism; fail-closed on empty.
+- 2026-09-11: Do not trust an issue comment's "verification" as repo state.
+  The 04:05 #3 comment described `MEMORY_ACTOR_WRITE` inside memory.sh and
+  `scripts/tests/actor-check.sh`; neither exists at HEAD. It was scratch work,
+  and 4b69005 reverts action.yml + scripts/ from HEAD in read-mode runs before
+  the token steps. `grep`/`git log -S` the tree first.
+- 2026-09-11: check.yml runs shellcheck -S warning + actionlint only; nothing
+  functionally exercises check-actor.sh or memory.sh, so `write_access`'s six
+  branches are untested. AGENTS.md notes an audit found real defects; names to
+  honor: `uses: ./` means the action's scripts are the checkout.
