@@ -28,4 +28,5 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
   shellcheck and `bash -n` on it pass.
 - 2026-09-11: 1085748 flipped the `memory` default to `true` (action.yml).
   memory.sh tells a 403 (token) from a 409 (race) on the push since f519a1e,
-  a fix that came from this file.
+  a fix that came from the note on #3. Do not re-flag it: memory.sh:145-157
+  now cases 403|404 vs 409 vs other.
