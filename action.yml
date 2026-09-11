@@ -63,6 +63,32 @@ inputs:
       `allowed_non_write_users`. Write mode always has both.
     required: false
     default: 'false'
+  memory:
+    description: >-
+      Give the agent a memory across runs: one `MEMORY.md` on an orphan
+      branch, copied into the workspace before the run and pushed back after
+      it if the agent changed it. The job needs `contents: write` for the
+      push. Needs a mode that can edit, `shell: true` or `pr`; plain read
+      mode sees the memory but cannot change it.
+    required: false
+    default: 'false'
+  memory_branch:
+    description: The branch that holds `MEMORY.md`. Created on first write, deletable any time.
+    required: false
+    default: agent-memory
+  memory_repo:
+    description: >-
+      `owner/repo` holding the memory branch when it is not this repo, e.g.
+      the org's `.github` repo for one memory across an org. Needs a
+      `github_token` that can write there.
+    required: false
+    default: ''
+  memory_lines:
+    description: >-
+      Line cap. The agent is told to keep under it; when a run leaves the
+      file over it, one extra model call compacts it before the push.
+    required: false
+    default: '80'
   skills:
     description: >-
       Copy the skills shipped with this action (`skills/`) and any under the
@@ -179,7 +205,7 @@ outputs:
     value: ${{ steps.run.outputs.response }}
   cost:
     description: What the run cost, in US dollars, including the `fx pr` draft when there was one.
-    value: ${{ steps.pr.outputs.cost || steps.run.outputs.cost }}
+    value: ${{ steps.memory_save.outputs.cost || steps.pr.outputs.cost || steps.run.outputs.cost }}
   steps:
     description: How many tool-loop steps the agent took.
     value: ${{ steps.run.outputs.steps }}
@@ -278,6 +304,21 @@ runs:
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         echo "FX_AUTO_UPGRADE=0" >> "$GITHUB_ENV"
 
+    # The memory file lands in the workspace before the prompt is built, so
+    # build-prompt.sh can quote it, and before the tree snapshot, so an edit
+    # to it is never counted as the agent's change to the repo.
+    - name: Fetch memory
+      id: memory
+      if: ${{ inputs.memory == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        MEMORY_REPO: ${{ inputs.memory_repo }}
+        MEMORY_BRANCH: ${{ inputs.memory_branch }}
+        MEMORY_LINES: ${{ inputs.memory_lines }}
+      run: bash "${{ github.action_path }}/scripts/memory.sh" fetch
+
     - name: Build the prompt
       id: context
       shell: bash
@@ -292,6 +333,8 @@ runs:
         INPUT_TRIGGER: ${{ inputs.trigger }}
         INPUT_MODE: ${{ inputs.mode }}
         INPUT_SHELL: ${{ inputs.shell }}
+        MEMORY_PATH: ${{ steps.memory.outputs.memory_path }}
+        MEMORY_LINES: ${{ inputs.memory_lines }}
       run: bash "${{ github.action_path }}/scripts/build-prompt.sh"
 
     # One config file per run, written globally (~/.fx/settings.json) rather
@@ -527,6 +570,21 @@ runs:
         BRANCH_PREFIX: ${{ inputs.branch_prefix }}
       run: bash "${{ github.action_path }}/scripts/open-pr.sh"
 
+    # After the PR, so a compaction's spend is in the ledger before the footer
+    # reads it; gated on the integrity check like everything that holds a
+    # token; never fails the run.
+    - name: Save memory
+      id: memory_save
+      if: ${{ !cancelled() && steps.integrity.outcome != 'failure' && steps.memory.outputs.memory_path != '' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        MEMORY_REPO: ${{ inputs.memory_repo }}
+        MEMORY_BRANCH: ${{ inputs.memory_branch }}
+        MEMORY_LINES: ${{ inputs.memory_lines }}
+      run: bash "${{ github.action_path }}/scripts/memory.sh" save
+
     # !cancelled(): a failed run is exactly when you want to be told why, and
     # a bare red X with no comment is the worst outcome for someone who typed
     # /fx and walked away. A cancelled one was superseded; say nothing.
@@ -540,12 +598,13 @@ runs:
         RESPONSE_PATH: ${{ steps.run.outputs.response_path }}
         COMMENT_KEY: ${{ inputs.comment_key }}
         MODEL: ${{ steps.configure.outputs.model }}
-        COST: ${{ steps.pr.outputs.cost || steps.run.outputs.cost }}
+        COST: ${{ steps.memory_save.outputs.cost || steps.pr.outputs.cost || steps.run.outputs.cost }}
         DURATION: ${{ steps.run.outputs.duration }}
         IN_TOKENS: ${{ steps.run.outputs.input_tokens }}
         OUT_TOKENS: ${{ steps.run.outputs.output_tokens }}
         PR_URL: ${{ steps.pr.outputs.pr_url }}
         RUN_FAILED: ${{ steps.run.outcome }}
+        MEMORY: ${{ steps.memory_save.outputs.memory }}
       run: bash "${{ github.action_path }}/scripts/post-comment.sh"
 
     - name: Take the reaction back off

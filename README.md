@@ -28,7 +28,7 @@ jobs:
       group: fx-note-${{ github.event_name }}-${{ github.event.issue.number }}
       cancel-in-progress: true
     permissions:
-      contents: read
+      contents: write
       issues: write
     steps:
       - uses: actions/checkout@v7
@@ -41,6 +41,7 @@ jobs:
           mode: read
           shell: true
           comment_key: note
+          memory: true
   comment:
     if: >-
       github.event_name == 'issue_comment' &&
@@ -66,6 +67,7 @@ jobs:
         with:
           shell: true
           max_steps: '60'
+          memory: true
 ```
 
 ```bash
@@ -137,6 +139,14 @@ fx's skill folder on the runner for that run only. Your repo's own skill
 folders are seen as they are; `.github/fx/skills/` is copied the same way for
 skills only this agent should have. `skills: false` turns the copy off.
 
+**Memory.** With `memory: true` the agent keeps one `MEMORY.md` on an
+`agent-memory` branch: what earlier runs learned about this repo, read before
+each run, edited by the agent with its ordinary tools, pushed back after the
+run if it changed. A model of the repo, not a diary, and when it grows past
+`memory_lines` the action compacts it with one cheap call. Read it on the
+branch, edit it yourself, or delete the branch to forget. Needs
+`contents: write` on the job for the push; fx never holds that token.
+
 **A different note goes in `.github/fx/issue.md`.** Set
 `prompt_file: .github/fx/issue.md` on the note job and, when the file exists,
 it replaces the built-in note whole. Start from the built-in text. `prompt`
@@ -165,6 +175,8 @@ All optional.
 | `pr_model` | same as `model` | A stronger model for `pr` runs only. |
 | `mode` | `auto` | The comment decides. `read` and `write` force it. |
 | `shell` | `false` | Shell and edits in read mode too, thrown away. Nothing is committed. |
+| `memory` | `false` | One `MEMORY.md` on an orphan branch, read before and pushed after each run. |
+| `memory_branch`, `memory_repo`, `memory_lines` | `agent-memory`, this repo, `80` | Where the memory lives and how long it may get. |
 | `skills` | `true` | Copy the action's skills and the repo's `.github/fx/skills/` to fx on the runner. |
 | `trigger` | `/fx` | Whole word, anywhere in the comment. Comma-separate several. |
 | `allowed_non_write_users` | | Logins exempt from the write check, or `*`. |

@@ -48,8 +48,10 @@ jobs:
     concurrency:
       group: fx-note-${{ github.event_name }}-${{ github.event.issue.number }}
       cancel-in-progress: true   # a burst of edits: the last one wins
+    # `contents: write` only so the memory file can be pushed to its branch;
+    # fx never holds this token. With `memory: false` this can be `read`.
     permissions:
-      contents: read
+      contents: write
       issues: write
     steps:
       - uses: actions/checkout@v7
@@ -63,6 +65,10 @@ jobs:
           mode: read
           shell: true
           comment_key: note
+          # One MEMORY.md on an `agent-memory` branch: what earlier runs
+          # learned about this repo, read before each run, edited by the
+          # agent, pushed back after. Delete the branch to forget.
+          memory: true
           # The note prompt is built into the action, prompts/issue.md,
           # and improves for every repo when it improves there. To change it
           # for this repo alone, add the file named here; it replaces the whole
@@ -104,5 +110,6 @@ jobs:
         with:
           shell: true
           max_steps: '60'
+          memory: true
           # To put code on a stronger model than questions, uncomment:
           # pr_model: anthropic/claude-sonnet-5

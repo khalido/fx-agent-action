@@ -69,6 +69,13 @@ as a break.
   token as `zai/glm-5.3-flash` within a fraction of a cent and better on
   every measure that mattered here. It works harder per run, so a note costs
   more than it did on GLM. `model` overrides it in one line.
+- `memory: true`: one `MEMORY.md` on an orphan `agent-memory` branch, fetched
+  into the workspace before the run, quoted in the prompt, edited by the
+  agent with its ordinary tools, pushed back after the run if it changed.
+  Concurrent runs merge three ways on a 409. Over `memory_lines` the action
+  compacts it with one extra call on the same model. `memory_repo` points
+  it at an org's `.github` repo for one memory across an org. Never fails
+  the run; never lands in a pull request.
 - Skills. The action ships its own under `skills/` and copies them, with any
   under the repo's `.github/fx/skills/`, into fx's skill directory on the
   runner, so they exist for this agent in this run and nowhere else.

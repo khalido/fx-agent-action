@@ -32,6 +32,7 @@ before a change ships, and `gh`, `jq` and `python3` are already on every runner.
 | `scripts/redact.py` | the secret scrubber, shared by the answer and the session |
 | `scripts/post-comment.sh` | upsert one comment, found by a hidden marker |
 | `scripts/open-pr.sh` | branch, commit, push, open the draft PR |
+| `scripts/memory.sh` | `fetch` the memory file from its branch before the run, `save` it after, compacting when over the cap |
 
 If a change wants another file, ask whether it belongs in the prompt instead.
 
@@ -165,6 +166,22 @@ in the base block would ride on every run instead. The first is
 `compare-models`, because every consumer uses the gateway by construction.
 Add a second when a second procedure repeats, not before. Frontmatter is
 `name` and `description`, checked in `check.yml`.
+
+**Memory is a file the agent edits, on a branch the action owns.** One
+`MEMORY.md` on an orphan `agent-memory` branch, fetched into
+`.agent-memory/` before the run through the contents API, quoted in the
+prompt, pushed back after the run if changed, with the blob sha so a
+concurrent run gets a 409 and a three-way merge rather than a lost write.
+No MCP tool, because a tool the model may choose to call means some runs
+write nothing; the agent uses its file tools and the action does the rest.
+The branch is created through the git data API on first save, since the
+contents API cannot make one. Compaction is the action's decision, one
+`fx ask` when the file is over `memory_lines`, so nobody wires a second
+workflow. The prompt follows KO's own six-day memory-contract experiment in
+`~/code/thinker`: a loose "add dated lines" contract produced diary-like
+churn, an edit-in-place, delete-stale, earn-its-place contract produced
+durable entries. `open-pr.sh` filters `.agent-memory/` out of the PR
+pathspec. The survey behind the choice of store is `docs/agent-memory.md`.
 
 **Cost and tokens come from `fx usage --json`, not from `fx ask`.** `ask`
 reports tokens and no price, and only the main agent's tokens: subagents, the

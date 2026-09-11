@@ -89,6 +89,35 @@ the note entirely**, add `.github/fx/issue.md` and set
 built-in note whole. **For another kind of job**, `prompt` inline or a
 `prompt_file` of your own; the base block and the thread come free.
 
+## Memory
+
+`memory: true` gives the agent one file that survives between runs:
+`MEMORY.md` on an orphan branch, `agent-memory` by default. Before the run the
+action fetches it into the workspace at `.agent-memory/MEMORY.md` and quotes
+it in the prompt. The base block tells the agent what it is: a model of how
+this repository and its people work, not a diary. Correct or delete stale
+lines rather than adding on top, bump a date when a run confirms a line, add
+a line only when a future run needs it, stay under the cap. The agent edits
+the file with its ordinary tools and knows nothing else about the mechanism.
+
+After the run, if the file changed, the action pushes it back through the
+contents API with the blob sha it fetched. A 409 means another run wrote
+first; the action merges three ways and retries once, else warns. If the
+file is over `memory_lines` the action first makes one extra model call, on
+the same model, to compact it. Everything is non-fatal: a failed push loses
+this run's memory and nothing else. The path is excluded from pull requests.
+
+What it needs: `contents: write` on the job, because the push uses the
+workflow token; fx itself never holds it. And a mode that can edit, so
+`shell: true` or a `pr` run; plain read mode sees the memory and cannot
+change it. `memory_repo` pointing at the org's `.github` repo, with an App
+token through `github_token`, gives one memory across an org.
+
+The memory is quoted inside the untrusted framing, because earlier runs wrote
+it from threads a stranger may have shaped. Read it on the branch in the
+browser, edit it by hand, or `git push origin --delete agent-memory` to
+forget everything.
+
 ## Who can trigger a run
 
 Two checks inside the action, before anything else, and a no fails the run
