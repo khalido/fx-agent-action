@@ -48,10 +48,11 @@ previous=$(printf '%s' "$existing" | jq -r '.body // ""' 2>/dev/null \
   | sed -n 's/^<!-- fx-runs \(.*\) -->$/\1/p' | head -n1)
 [ -n "$previous" ] && printf '%s' "$previous" | jq -e 'type == "array"' >/dev/null 2>&1 || previous='[]'
 this_run=$(jq -nc --arg m "${MODEL:-}" --arg c "${COST:-}" --arg s "${DURATION:-}" \
-  --arg i "${IN_TOKENS:-}" --arg o "${OUT_TOKENS:-}" --arg u "$run_url" --arg mem "${MEMORY:-}" --arg est "${COST_ESTIMATED:-}" \
+  --arg i "${IN_TOKENS:-}" --arg o "${OUT_TOKENS:-}" --arg u "$run_url" --arg mem "${MEMORY:-}" --arg est "${COST_ESTIMATED:-}" --arg p "${PROVIDERS:-}" \
   '{m:$m, c:($c|tonumber? // null), s:($s|tonumber? // null), i:($i|tonumber? // null), o:($o|tonumber? // null), u:$u}
    + (if $mem == "updated" or $mem == "compacted" then {mem:$mem} else {} end)
-   + (if $est == "true" then {est:true} else {} end)')
+   + (if $est == "true" then {est:true} else {} end)
+   + (if $p != "" then {p:$p} else {} end)')
 runs=$(printf '%s' "$previous" | jq -c --argjson r "$this_run" '. + [$r] | .[-6:]')
 
 # Cents with one decimal; dollars from $1. Tokens in k from a thousand.
@@ -59,11 +60,13 @@ footer=$(printf '%s' "$runs" | jq -r '
   def cents: if . == null then "?" elif . >= 1 then "$" + (. * 100 | round / 100 | tostring) else ((. * 1000 | round) / 10 | tostring) + "¢" end;
   # ≈ when the figure is a list-price estimate (BYOK: the gateway bills nothing).
   def costof: (if .est == true then "≈" else "" end) + (.c | cents);
+  # who served it, when the gateway told us (BYOK runs); the quality varies by provider.
+  def via: if (.p // "") != "" then " via " + .p else "" end;
   def k: if . == null then "?" elif . >= 1000 then ((. / 100 | round) / 10 | tostring) + "k" else tostring end;
   def secs: if . == null then "" else " · " + (tostring) + "s" end;
   def mem: if .mem == "updated" then " · memory updated" elif .mem == "compacted" then " · memory compacted" else "" end;
   (.[-1]) as $n
-  | ["[fx](https://fx.sh) `\($n.m)` · \($n.i | k) in / \($n.o | k) out · \($n | costof)\($n.s | secs)\($n | mem) · [run](\($n.u))"]
+  | ["[fx](https://fx.sh) `\($n.m)`\($n | via) · \($n.i | k) in / \($n.o | k) out · \($n | costof)\($n.s | secs)\($n | mem) · [run](\($n.u))"]
   + [ .[:-1] | reverse | .[] | "earlier · \(costof)\(.s | secs) · [run](\(.u))" ]
   + (if length > 1 then ["\(length) runs · \(if any(.[]; .est == true) then "≈" else "" end)\([.[].c | select(. != null)] | add | cents) total"] else [] end)
   | .[]')

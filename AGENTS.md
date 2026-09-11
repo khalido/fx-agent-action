@@ -193,12 +193,17 @@ churn, an edit-in-place, delete-stale, earn-its-place contract produced
 durable entries. `open-pr.sh` filters `.agent-memory/` out of the PR
 pathspec. The survey behind the choice of store is `docs/agent-memory.md`.
 
-**Under BYOK the ledger says zero, so the footer estimates.** KO added a
-DeepSeek key to the gateway (2026-09-11); the gateway then answers with
-`cost: 0, is_byok: true` and fx's ledger records no spend, though it still
-has per-model tokens. `cost.sh` multiplies those by the public catalog's list
-prices and marks the figure estimated, shown as `≈` in the footer. The
-gateway budget no longer caps that model; the provider's account does.
+**Under BYOK the ledger says zero, so `cost.sh` asks the gateway.** KO added
+a DeepSeek key to the gateway (2026-09-11); the gateway then answers with
+`cost: 0, is_byok: true` and fx's ledger records no spend. But
+`~/.fx/usage.jsonl` keeps every generation id, and
+`GET /v1/generation?id=<id>` on the gateway returns that generation's
+`upstream_inference_cost`, `provider_name`, `latency` and token counts. So
+the helper sums the real charges and the footer says which provider served
+the run, which is the number to watch given how much the nine DeepSeek
+providers differ. The list-price estimate from tokens, marked `≈`, is the
+fallback when the lookups fail. The gateway budget no longer caps a BYOK
+model; the provider's account does.
 
 **Cost and tokens come from `fx usage --json`, not from `fx ask`.** `ask`
 reports tokens and no price, and only the main agent's tokens: subagents, the

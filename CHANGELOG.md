@@ -51,8 +51,10 @@ break and how a release is cut.
 - Memory is saved only from runs whose actor has write access. A run allowed
   through `allowed_non_write_users` or `allowed_bots` reads it and cannot
   change it.
-- The footer shows a `≈` list-price estimate when fx's ledger records no
-  spend, which is what a BYOK provider key on the gateway produces.
+- Under a BYOK key the gateway bills nothing and fx's ledger records zero,
+  so the action looks up each generation on the gateway and sums the
+  provider's real charge instead; the footer names the provider that served
+  the run. A list-price estimate, marked `≈`, is the fallback.
 - Default model is `deepseek/deepseek-v4.1-flash` for every task, replacing
   `zai/glm-5.3-flash` (2026-09-10). Same input price, a fifth more on output,
   better work.

@@ -66,6 +66,7 @@ usage=$(fx usage --json 2>/dev/null || true)
 cost_lines=$(bash "$(dirname "$0")/cost.sh" 2>/dev/null || true)
 cost=$(printf '%s\n' "$cost_lines" | sed -n 's/^cost=//p')
 cost_estimated=$(printf '%s\n' "$cost_lines" | sed -n 's/^cost_estimated=//p')
+providers=$(printf '%s\n' "$cost_lines" | sed -n 's/^providers=//p')
 ledger_in=$(printf '%s' "$usage" | jq -r '.totals.input_tokens // empty' 2>/dev/null || true)
 ledger_out=$(printf '%s' "$usage" | jq -r '.totals.output_tokens // empty' 2>/dev/null || true)
 [ -n "$ledger_in" ] && in_tokens="$ledger_in"
@@ -83,6 +84,7 @@ delim="FX_EOF_$(openssl rand -hex 12 2>/dev/null || date +%s%N)"
   echo "result_path=$out"
   echo "cost=$cost"
   echo "cost_estimated=${cost_estimated:-false}"
+  echo "providers=${providers:-}"
   echo "steps=$steps"
   echo "duration=$duration"
   echo "fx_version=$fx_version"
