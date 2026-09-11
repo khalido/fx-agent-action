@@ -131,15 +131,30 @@ save)
     # Branch exists but the file did not; a plain create.
   fi
 
+  # Prints the response body either way; gh exits 1 on a 4xx and the body
+  # carries "status", so the caller can tell a 409 (race) from a 403 (token).
   put() {
     gh api -X PUT "$api" -f message="$msg" -f branch="$branch" -f content="$content" \
       ${sha:+-f sha="$sha"} 2>/dev/null
   }
-  if put >/dev/null; then
+  if resp=$(put); then
     echo "memory: saved to $repo@$branch ($status)" >&2
     out "memory=$status"
     exit 0
   fi
+  case "$(status_of "$resp")" in
+    409) ;;   # another run wrote first; merge below
+    403|404)
+      echo "::notice::memory: the agent edited its memory but the job cannot push to $repo@$branch. Give the job \`contents: write\` (and check \`memory_repo\`), or set \`memory: false\` to stop trying." >&2
+      out "memory=unsaved"
+      exit 0
+      ;;
+    *)
+      echo "::warning::memory: push to $repo@$branch failed: $(printf '%s' "$resp" | jq -r '.message // .' 2>/dev/null | head -c 200). This run's memory is lost." >&2
+      out "memory=unsaved"
+      exit 0
+      ;;
+  esac
 
   # 409: another run wrote first. Three-way merge: ours, the copy we started
   # from, theirs. Clean merge → retry once. Conflict → warn, keep theirs.
