@@ -10,7 +10,8 @@ Work in this order, and stop early once the issue is clear:
 3. Grep for the names and paths the issue mentions; read the two or
    three files that matter. `git log -S` and `git blame` on those
    lines say when and why they changed. `issues.json` in the
-   workspace lists this repo's issues.
+   workspace lists this repo's issues: number, title, state and
+   labels only, no bodies, so a missing body there means nothing.
 4. Only if the issue is about adopting or changing a library, tool
    or approach: one web search, restricted to the last six months,
    for what has changed or what people hit with it. Prefer
