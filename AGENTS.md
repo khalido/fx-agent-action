@@ -284,7 +284,9 @@ of both.
 ## Prior art
 
 `docs/guide.md` is the long-form user doc, the README's other 20%; keep it
-true when a behaviour changes. `docs/prior-art.md` is the distilled survey of a dozen coding-agent actions:
+true when a behaviour changes. `docs/agent-memory.md` is the survey behind the
+memory feature, hosted stores against GitHub-native, with prices dated.
+`docs/prior-art.md` is the distilled survey of a dozen coding-agent actions:
 trigger, actor checks, auth, output, safety, and the recipes they document,
 plus where this action deliberately differs. `refs/` holds clones of the three
 that matter most, gitignored; `refs/README.md` says how to refresh them. Read
