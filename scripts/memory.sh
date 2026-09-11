@@ -124,7 +124,7 @@ save)
         && commit=$(gh api -X POST "repos/$repo/git/commits" -f message="$msg" -f tree="$tree" --jq .sha) \
         && gh api -X POST "repos/$repo/git/refs" -f ref="refs/heads/$branch" -f sha="$commit" >/dev/null \
         && { echo "memory: created $repo@$branch" >&2; out "memory=$status"; exit 0; }
-      echo "::warning::memory: could not create the $branch branch in $repo (does the job have contents: write?). This run's memory is lost." >&2
+      echo "::notice::memory: the agent edited its memory but the job cannot push to $repo. Give the job \`contents: write\`, or set \`memory: false\` to stop trying." >&2
       out "memory=unsaved"
       exit 0
     fi

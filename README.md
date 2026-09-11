@@ -42,7 +42,6 @@ jobs:
           mode: read
           shell: true
           comment_key: note
-          memory: true
   comment:
     if: >-
       github.event_name == 'issue_comment' &&
@@ -69,7 +68,6 @@ jobs:
         with:
           shell: true
           max_steps: '60'
-          memory: true
 ```
 
 ```bash
@@ -141,7 +139,7 @@ fx's skill folder on the runner for that run only. Your repo's own skill
 folders are seen as they are; `.github/fx/skills/` is copied the same way for
 skills only this agent should have. `skills: false` turns the copy off.
 
-**Memory.** With `memory: true` the agent keeps one `MEMORY.md` on an
+**Memory.** On by default: the agent keeps one `MEMORY.md` on an
 `agent-memory` branch: what earlier runs learned about this repo, read before
 each run, edited by the agent with its ordinary tools, pushed back after the
 run if it changed. A model of the repo, not a diary, and when it grows past
@@ -177,7 +175,7 @@ All optional.
 | `pr_model` | same as `model` | A stronger model for `pr` runs only. |
 | `mode` | `auto` | The comment decides. `read` and `write` force it. |
 | `shell` | `false` | Shell and edits in read mode too, thrown away. Nothing is committed. |
-| `memory` | `false` | One `MEMORY.md` on an orphan branch, read before and pushed after each run. |
+| `memory` | `true` | One `MEMORY.md` on an orphan branch, read before and pushed after each run. Your default branch is never touched. |
 | `memory_branch`, `memory_repo`, `memory_lines` | `agent-memory`, this repo, `80` | Where the memory lives and how long it may get. |
 | `skills` | `true` | Copy the action's skills and the repo's `.github/fx/skills/` to fx on the runner. |
 | `trigger` | `/fx` | Whole word, anywhere in the comment. Comma-separate several. |

@@ -96,7 +96,7 @@ built-in note whole. **For another kind of job**, `prompt` inline or a
 
 ## Memory
 
-`memory: true` gives the agent one file that survives between runs:
+Memory is on by default. The agent gets one file that survives between runs:
 `MEMORY.md` on an orphan branch, `agent-memory` by default. Before the run the
 action fetches it into the workspace at `.agent-memory/MEMORY.md` and quotes
 it in the prompt. The base block tells the agent what it is: a model of how

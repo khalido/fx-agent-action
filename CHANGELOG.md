@@ -69,7 +69,7 @@ as a break.
   token as `zai/glm-5.3-flash` within a fraction of a cent and better on
   every measure that mattered here. It works harder per run, so a note costs
   more than it did on GLM. `model` overrides it in one line.
-- `memory: true`: one `MEMORY.md` on an orphan `agent-memory` branch, fetched
+- Memory, on by default: one `MEMORY.md` on an orphan `agent-memory` branch, fetched
   into the workspace before the run, quoted in the prompt, edited by the
   agent with its ordinary tools, pushed back after the run if it changed.
   Concurrent runs merge three ways on a 409. Over `memory_lines` the action

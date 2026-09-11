@@ -65,13 +65,14 @@ inputs:
     default: 'false'
   memory:
     description: >-
-      Give the agent a memory across runs: one `MEMORY.md` on an orphan
+      A memory across runs, on by default: one `MEMORY.md` on an orphan
       branch, copied into the workspace before the run and pushed back after
-      it if the agent changed it. The job needs `contents: write` for the
-      push. Needs a mode that can edit, `shell: true` or `pr`; plain read
-      mode sees the memory but cannot change it.
+      it if the agent changed it. The default branch is never touched. The
+      push needs `contents: write` on the job; without it the run notes that
+      and goes on. Needs a mode that can edit, `shell: true` or `pr`; plain
+      read mode sees the memory but cannot change it. `false` turns it off.
     required: false
-    default: 'false'
+    default: 'true'
   memory_branch:
     description: The branch that holds `MEMORY.md`. Created on first write, deletable any time.
     required: false

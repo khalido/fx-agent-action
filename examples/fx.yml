@@ -68,10 +68,10 @@ jobs:
           mode: read
           shell: true
           comment_key: note
-          # One MEMORY.md on an `agent-memory` branch: what earlier runs
-          # learned about this repo, read before each run, edited by the
-          # agent, pushed back after. Delete the branch to forget.
-          memory: true
+          # Memory is on by default: one MEMORY.md on an `agent-memory`
+          # branch, what earlier runs learned about this repo, read before
+          # each run, edited by the agent, pushed back after. Delete the
+          # branch to forget; `memory: false` to turn it off.
           # The note prompt is built into the action, prompts/issue.md,
           # and improves for every repo when it improves there. To change it
           # for this repo alone, add the file named here; it replaces the whole
@@ -116,6 +116,5 @@ jobs:
         with:
           shell: true
           max_steps: '60'
-          memory: true
           # To put code on a stronger model than questions, uncomment:
           # pr_model: anthropic/claude-sonnet-5
