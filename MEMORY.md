@@ -16,9 +16,21 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
   it shipped as `agent-memory`, and the `fx-memory` references below (including
   `--delete fx-memory` at :292) are the preserved survey, not stale docs. Do not
   flag them as a bug again. Default is agent-memory (action.yml:78, memory.sh:19).
-- 2026-09-11: read denies `edit`/`shell` by rule; `shell: true` flips both to
-  allow (`tool_rule` at action.yml:407), which the memory edit instruction
-  depends on. The comment at action.yml:347-358 now describes this correctly.
+- 2026-09-13: fx's shell-command permission key is `bash`, not `shell`; fx's
+  own Rules doc example is `"bash": {"git *": "allow", "git push *": "deny"}`.
+  On 0.0.9 an ALLOW under `shell` does not bind (ask mode still blocks; the
+  same under `bash` runs) while a DENY under `shell` only hides the tool.
+  action.yml:411-414 still writes {edit,shell}, so scratch mode's shell allow
+  is inert and each shell call falls to the auto reviewer. Read-back at
+  action.yml:426-429 cannot catch it: fx permissions echoes any key verbatim.
+  AGENTS.md "edit and shell are the two measured to bind" is wrong for allow.
+- 2026-09-13: Bash rule patterns glob the WHOLE command string and the last
+  matching rule wins, so a prefix deny leaks through a compound: with
+  {"*":"allow","railway status*":"allow","railway variables*":"deny"},
+  `railway status && railway variables` runs. A `*railway variables*` deny
+  placed AFTER a broad `*railway*` allow does hold. Test with fx ask in a temp
+  HOME; the run env has fx 0.0.9 + AI_GATEWAY_API_KEY, so probes are cheap
+  (models.gateway=deepseek/deepseek-v4.1-flash).
 - 2026-09-11: The memory block is quoted before sanitize.py runs on the whole
   context (build-prompt.sh:343), and in read mode its edit instruction is gated
   on `INPUT_SHELL == true` (build-prompt.sh:189), so plain read mode is told it
