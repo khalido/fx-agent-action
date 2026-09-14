@@ -17,7 +17,7 @@ on:
   issues:
     types: [opened, edited]
   issue_comment:
-    types: [created]
+    types: [created, edited]
 jobs:
   fx:
     if: >-
