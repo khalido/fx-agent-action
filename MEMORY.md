@@ -56,3 +56,12 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
   functionally exercises check-actor.sh or memory.sh, so `write_access`'s six
   branches are untested. AGENTS.md notes an audit found real defects; names to
   honor: `uses: ./` means the action's scripts are the checkout.
+- 2026-09-14: issue #4 is real and the changelog already admits it:
+  CHANGELOG:84-86 names only the PR, memory and comment steps, and the
+  `always()` "Take the reaction back off" step (action.yml:629-639) runs
+  scripts/react.sh with the write token and no integrity gate. It is the only
+  gated-directory script that runs after fx, so a rewritten react.sh executes
+  with a token that can push branches. The repo deliberately left the choice
+  open (gate and strand the 👀, or inline the DELETE into action.yml: the
+  endpoint logic only exists in react.sh and check.yml's dogfood diff covers
+  examples/fx.yml alone). Do not "fix" it silently; it is a decision.
