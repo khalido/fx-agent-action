@@ -35,9 +35,10 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
   context (build-prompt.sh:343), and in read mode its edit instruction is gated
   on `INPUT_SHELL == true` (build-prompt.sh:189), so plain read mode is told it
   cannot edit. Both traps from the issue are handled in code.
-- 2026-09-11: check.yml runs shellcheck -S warning, actionlint and the
-  sanitizer cases; nothing covers scripts/memory.sh functionally, though
-  shellcheck and `bash -n` on it pass.
+- 2026-09-11: check.yml = shellcheck -S warning, actionlint, the dogfood
+  diff, the prompt cascade, skills frontmatter, and python's py_compile +
+  sanitizer cases. Nothing functionally covers scripts/memory.sh (shellcheck
+  and `bash -n` pass on it) or check-actor.sh.
 - 2026-09-11: 1085748 flipped the `memory` default to `true` (action.yml).
   memory.sh tells a 403 (token) from a 409 (race) on the push since f519a1e,
   a fix that came from the note on #3. Do not re-flag it: memory.sh:145-157
@@ -45,17 +46,26 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
 - 2026-09-11: The write-access gate KO asked for on #3 is already in the tree
   since a0d3bf8 and lives in TWO places, not memory.sh: `check-actor.sh:79`
   emits `write_access`, `action.yml:595` gates the Save memory step on it, and
-  `build-prompt.sh:199,252` (MEMORY_WRITABLE) turns the agent's edit
+  `build-prompt.sh:208,262` (MEMORY_WRITABLE, fed at action.yml:341) turns the agent's edit
   instruction on/off. Step-level `if:` is the determinism; fail-closed on empty.
 - 2026-09-11: Do not trust an issue comment's "verification" as repo state.
   The 04:05 #3 comment described `MEMORY_ACTOR_WRITE` inside memory.sh and
   `scripts/tests/actor-check.sh`; neither exists at HEAD. It was scratch work,
   and 4b69005 reverts action.yml + scripts/ from HEAD in read-mode runs before
   the token steps. `grep`/`git log -S` the tree first.
-- 2026-09-11: check.yml runs shellcheck -S warning + actionlint only; nothing
-  functionally exercises check-actor.sh or memory.sh, so `write_access`'s six
-  branches are untested. AGENTS.md notes an audit found real defects; names to
-  honor: `uses: ./` means the action's scripts are the checkout.
+- 2026-09-14: #6 confirmed: `scripts/tests/` never existed in any ref, and all
+  six check-actor.sh outcomes reproduce with a `gh` stub first on PATH, no
+  GH_TOKEN, no network. Exit code distinguishes nothing (four of six exit 0),
+  so assert GITHUB_OUTPUT too; unset GITHUB_OUTPUT writes /dev/null (:79) and
+  the case passes for the wrong reason. Inputs (action.yml:234-241): ACTOR,
+  EVENT_NAME, SENDER_TYPE, GITHUB_REPOSITORY, GITHUB_OUTPUT=<file>, MODE
+  (default auto; the bot and stranger-exception rows need MODE=read and
+  SHELL_TOOL=false), ALLOWED_BOTS, ALLOWED_NON_WRITE_USERS. The stub must tell
+  `users/*` 404 (an App, so Bot, then needs allowed_bots — the header's
+  schedule case) from a 500 (fail closed). check.yml:24's `scripts/*.sh` glob
+  will not lint scripts/tests/*.sh; the sanitizer's cases are inline in
+  check.yml:70ff, the house pattern. This proves the output, not the gate
+  (action.yml:595 + build-prompt.sh:208,262).
 - 2026-09-14: issue #4 is real and the changelog already admits it:
   CHANGELOG:84-86 names only the PR, memory and comment steps, and the
   `always()` "Take the reaction back off" step (action.yml:629-639) runs
