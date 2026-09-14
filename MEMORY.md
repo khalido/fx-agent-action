@@ -7,9 +7,21 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
 - 2026-09-11: The checkout has full history since 4b9810b (`fetch-depth: 0`
   in fx.yml); `git log -S` and `git blame` work. Earlier runs saw depth 1.
   Corrected by hand by KO's agent: a run wrote "shallow" from a `git log -3`.
-- 2026-09-11: The note/comment jobs give the agent's shell no `GH_TOKEN`, so
-  `gh issue view` fails. `issues.json` (fetched by build-prompt.sh) is the only
-  issue list.
+- 2026-09-11: The note/comment jobs give the agent no `GH_TOKEN`: `gh issue
+  view` and run logs fail, so `issues.json` (build-prompt.sh) is the only issue
+  list. The public API does answer anonymously for `commits?sha=agent-memory`,
+  `contents/MEMORY.md?ref=agent-memory` and `check-runs/<id>/annotations`, the
+  last being the only view of memory.sh's `::warning::` lines.
+- 2026-09-14: The 409 merge loses in practice. Six of seven issue runs on 09-14
+  started inside 90s; #6 wrote a8fcd54 while #5, #7 and #9 each got 409 and
+  memory.sh:175 — three attempts, zero merges, a lost edit visible only as a
+  check annotation. The winner's last hunk reached the final three lines, where
+  new entries land, so a loser's append collides; only an edit the winner left
+  alone merges. Compaction compounds it: "Newest first" over an oldest-first
+  file permutes everything.
+- 2026-09-14: Compaction's model call works, measured: 88 lines in → 25 out, the
+  heading kept, no fences, inside the cap+5 guard (memory.sh:101). Do not test it
+  with `memory_lines: 5` here — that cap is the real branch's. Use `memory_repo`.
 - 2026-09-11: `scripts/memory.sh fetch` no longer deletes `.agent-memory/` on an
   API error (fixed 1c93098); safe to run by hand.
 - 2026-09-11: `docs/agent-memory.md:1-5` already reconciles the branch name:
