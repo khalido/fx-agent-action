@@ -14,11 +14,12 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
 - 2026-09-14: #11: cost.sh:24-27 exits as soon as totals.spend > 0, before the gateway lookups and without a providers= line, so a run mixing a gateway-billed helper with a BYOK model drops the BYOK charge entirely.
 - 2026-09-14: #11: cost_estimated=false (cost.sh:50) makes a BYOK figure look gateway-billed; post-comment.sh:62 renders est:true as ≈ — do not reuse it for the upstream basis.
 - 2026-09-14: #11: GET /v1/generation?id= 404s seconds after creation and 200s later, so || true skips the unsettled ones.
-- 2026-09-14: #15 verified, all three hold: open-pr.sh:61's if means a nonzero fx pr never reaches the scrub at :65, and set -euo pipefail does not stop the body branch :127-128 reading the unredacted draft; :129's RESPONSE_PATH fallback is already scrubbed.
-- 2026-09-14: #15: :68's || true is the one difference from the working call at run-fx.sh:52-55.
-- 2026-09-14: #15: memory.sh has 0 redact calls; MEMORY.md → base64 :113, PUT :137, quoted at build-prompt.sh:352.
-- 2026-09-14: #15: all three date to 8158343, which moved the scrub before the title parse (:69) and deleted the later call — title, commit and PR-title paths are safe now, do not re-flag them.
-- 2026-09-14: #15: AGENTS.md:242 lists only "the answer and the session HTML"; the PR draft is the third site.
+- 2026-09-15: #15 gaps 1-2 closed on main in #19: open-pr.sh:70-76 scrubs .agent-pr.md unconditionally, before the title parse at :80, with no `|| true`; no `fx pr` drafting call is left in scripts/. Do not re-flag.
+- 2026-09-15: #15 gap 3 open, now the whole issue: memory.sh has 0 redact calls; $content is base64 at :113 and again at :167 after the 409 merge, PUT at :137.
+- 2026-09-15: #15 fix shape: scrub $file right before each base64 — the merge path rewrites $file from before.md/theirs, so one pre-:113 scrub lets a line from `theirs` back through. ~6-10 lines, plus a guard so a python3 failure sets memory=unsaved and skips the push (memory.sh:8 promises to never fail the run).
+- 2026-09-15: #15 docs to change with it: AGENTS.md:32 and :274-275 ("both the answer and the session HTML"), redact.py:10-15 ("Not what fx writes to a FILE"), CHANGELOG.md:153-158.
+- 2026-09-15: #15: the AI_GATEWAY_API_KEY env sits on the `uses:` step (examples/fx.yml:94), so every composite step inherits it — a scrub inside memory.sh sees the gateway key, not just GH_TOKEN.
+- 2026-09-14: #15: pre-fix branch content is not retroactively scrubbed; a key already on agent-memory stays in its history, so rotating beats rewriting.
 - 2026-09-14: #12 (agent-decides PR, couples to #5): the code claims hold — model chosen once at Configure (action.yml:402) and read back (:424), snapshot gate :499, fingerprint already in scratch mode (:483, :523).
 - 2026-09-14: #12: pr_model cannot be scoped to the PR text (one session, one model) — keep it and every note runs on the write model, or delete the input.
 - 2026-09-14: #12: a signal file cannot gate a step if: — read it in the inline integrity step :521-552 and emit an output for :587.
