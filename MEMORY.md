@@ -24,6 +24,7 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
 - 2026-09-14: #12: pr_model cannot be scoped to the PR text (one session, one model) — keep it and every note runs on the write model, or delete the input.
 - 2026-09-14: #12: a signal file cannot gate a step if: — read it in the inline integrity step :521-552 and emit an output for :587.
 - 2026-09-14: #12: a new agent-written PR-text file needs its own redact.py pass; only run-fx.sh:52 and open-pr.sh:65 are scrubbed today.
+- 2026-09-15: #5 re-confirmed on main c0aac03: the event shortcut (check-actor.sh:80-86) still exits before the allowed_bots read-mode block (:93-99), so schedule/workflow_dispatch/push + a listed bot → exit 0, write_access=true (repro: dependabot[bot], ALLOWED_BOTS=dependabot, MODE=agent). Mode is not tied to write_access: `mode` defaults to agent (action.yml:55), no verb decides it since 4d3490f, so the old #5 comment's "a schedule is read mode" (true of b96e6a7:146-147 auto+no pr verb) is now false.
 - 2026-09-14: #12: the snapshot sits after Build the prompt, so issues.json/__pycache__ never ship; schedule/dispatch skip the write check and pass write_access=true (check-actor.sh:81-87).
 - 2026-09-14: The 409 merge loses in practice — concurrent runs got 409 at memory.sh:175, zero merges, and the loss shows only as a check annotation.
 - 2026-09-14: Losers' appends land on the final lines, where the winner's last hunk is; only an edit the winner left alone merges.
