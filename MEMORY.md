@@ -8,7 +8,7 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
 - 2026-09-14: #4 is deliberately left open (gate and strand the 👀, or inline the DELETE) — do not "fix" it silently.
 - 2026-09-14: #6: all six scripts/check-actor.sh outcomes reproduce with a gh stub first on PATH, no GH_TOKEN, no network.
 - 2026-09-14: #6: exit codes distinguish nothing (four of six exit 0), so assert GITHUB_OUTPUT — unset writes /dev/null (:79), and the case then passes for the wrong reason.
-- 2026-09-14: #6: inputs at action.yml:234-241; bot and stranger rows need MODE=read, SHELL_TOOL=false; the stub must tell users/ 404 (App → needs allowed_bots) from 500 (fail closed).
+- 2026-09-14: #6: bot and stranger rows need MODE=read. The `shell` input is gone — one `mode` input since 4d3490f — so do not re-add SHELL_TOOL. The stub must tell users/ 404 (App → needs allowed_bots) from 500 (fail closed).
 - 2026-09-14: #6: check.yml:24's scripts/.sh glob will not lint scripts/tests/.sh; house pattern is inline cases, like the sanitizer at :70ff.
 - 2026-09-14: #11: on 0.0.9 fx usage --json totals carry cache_read_tokens/cache_write_tokens, and cache_read ⊆ input_tokens — input is the whole prompt, and the text view prints Total = Input + Output.
 - 2026-09-14: #11: cost.sh:24-27 exits as soon as totals.spend > 0, before the gateway lookups and without a providers= line, so a run mixing a gateway-billed helper with a BYOK model drops the BYOK charge entirely.
@@ -28,15 +28,18 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
 - 2026-09-14: Losers' appends land on the final lines, where the winner's last hunk is; only an edit the winner left alone merges.
 - 2026-09-14: Compaction compounds that loss: "Newest first" over an oldest-first file permutes everything.
 - 2026-09-14: Compaction itself works — 88 lines in → 25 out, heading kept, no fences, inside the cap+5 guard (memory.sh:101); do not test with memory_lines: 5 here, that cap is the real branch's — use memory_repo.
-- 2026-09-13: fx's shell-command permission key is bash, not shell: on 0.0.9 an ALLOW under shell does not bind (a DENY only hides the tool), so scratch mode's {edit,shell} at action.yml:411-414 leaves its shell allow inert and every shell call goes to the auto reviewer.
+- 2026-09-13: fx's shell-command permission key is bash, not shell: on 0.0.9 an ALLOW under shell does not bind (a DENY only hides the tool), so agent/answer's {edit,shell} allow at action.yml:386-390 leaves its shell allow inert and every shell call goes to the auto reviewer.
 - 2026-09-13: The read-back at action.yml:426-429 cannot catch that — fx permissions echoes any key verbatim, so AGENTS.md's "edit and shell are the two measured to bind" is wrong for allow.
 - 2026-09-13: Bash rule patterns glob the WHOLE command string and the last match wins, so a prefix deny leaks through &&; a railway variables deny placed after a broad railway allow does hold.
 - 2026-09-13: Probe with fx ask in a temp HOME: the run env has fx 0.0.9 + AI_GATEWAY_API_KEY (models.gateway=deepseek-v4.1-flash).
 - 2026-09-11: Full history since 4b9810b (fetch-depth: 0 in fx.yml), so git log -S/git blame work.
 - 2026-09-11: Note/comment jobs have no GH_TOKEN, so gh issue view and logs fail and issues.json (build-prompt.sh) is the only issue list.
 - 2026-09-11: Anonymous API does answer for commits?sha=agent-memory, contents/MEMORY.md?ref=agent-memory and check-runs/<id>/annotations — the only view of memory.sh's warns.
-- 2026-09-11: The memory block is quoted before sanitize.py runs on the whole context (build-prompt.sh:343), and read mode's edit instruction is gated on INPUT_SHELL == true (build-prompt.sh:189) — both #3 traps are handled in code.
-- 2026-09-11: The write-access gate from #3 is in the tree since a0d3bf8, in two places, not memory.sh: check-actor.sh:79 emits write_access, action.yml:595 gates Save memory, and build-prompt.sh:208,262 (fed at action.yml:341) flips the agent's edit instruction; step-level if: is the determinism, fail closed.
+- 2026-09-11: The memory block is quoted before sanitize.py runs on the whole context (build-prompt.sh:343), and the memory-edit instruction is gated on mode != read + MEMORY_WRITABLE (build-prompt.sh:254-255) — the INPUT_SHELL gate in this line's old text no longer exists; both #3 traps are handled in code.
+- 2026-09-11: The write-access gate from #3 is in the tree since a0d3bf8, in two places, not memory.sh: check-actor.sh:79 emits write_access, action.yml:595 gates Save memory, and action.yml:329 feeds MEMORY_WRITABLE from write_access; step-level if: is the determinism, fail closed.
+- 2026-09-15: #16: the fix taken is the base block, not the note. Read mode's paragraph (build-prompt.sh:192-196) now names the note's commands — a grep, git log, the tests — and says read the files instead and label the claim unverified. prompts/issue.md:12,29,49 is still ungated; khalido's last word on #16 was to gate it, so that half was decided against, not overlooked.
+- 2026-09-15: #16: that sentence and the agent/answer/read rework exist only on `one-agent` (b690fae, 2026-09-15); origin/main (b96e6a7) still has read mode with no fallback sentence, so on main the contradiction is live.
+- 2026-09-15: #16: check.yml builds read mode only from a comment event (:92) and the built-in note only in default mode (:46-58), so read + the note — the exact configuration — is untested; one more case there is the cheap guard.
 - 2026-09-11: check.yml = shellcheck -S warning, actionlint, the dogfood diff, the prompt cascade, skills frontmatter, py_compile + sanitizer cases; nothing functionally covers memory.sh or check-actor.sh.
 - 2026-09-11: memory.sh fetch no longer deletes .agent-memory/ on an API error (1c93098); 1085748 flipped the memory default to true; memory.sh splits 403 (token) from 409 (race) on the push (f519a1e, cases at :145-157) — do not re-flag.
 - 2026-09-11: docs/agent-memory.md:1-5 reconciles the branch name — the fx-memory refs below it (--delete fx-memory at :292) are the preserved survey, not stale docs; default agent-memory (action.yml:78, memory.sh:19) — do not flag again.
