@@ -15,13 +15,31 @@ out="$RUNNER_TEMP/fx-result.json"
 response_path="$RUNNER_TEMP/fx-response.md"
 started=$(date +%s)
 
+# A time limit, because since 0.0.11 fx waits indefinitely for a model
+# endpoint it cannot reach, printing "waiting for connection" every few
+# seconds. Measured against a dead endpoint: no JSON, no exit. Without this a
+# gateway outage runs to the job's timeout, which CANCELS the job, and a
+# cancelled job posts no comment. `timeout` is GNU; a runner without it goes
+# without, and the job's own limit is the backstop.
+minutes="${TIMEOUT_MINUTES:-10}"
+limit=()
+if [ "$minutes" != "0" ] && command -v timeout >/dev/null; then
+  limit=(timeout -k 30 "${minutes}m")
+fi
+
 set +e
 # Not --no-save: the saved session is what the HTML artifact is rendered from,
 # and the runner is thrown away at the end of the job anyway.
-fx ask --json --no-color < "$PROMPT_PATH" > "$out" 2>"$RUNNER_TEMP/fx-stderr.log"
+${limit[@]+"${limit[@]}"} fx ask --json --no-color < "$PROMPT_PATH" > "$out" 2>"$RUNNER_TEMP/fx-stderr.log"
 fx_status=$?
 set -e
 duration=$(( $(date +%s) - started ))
+
+if [ "$fx_status" = 124 ] || [ "$fx_status" = 137 ]; then
+  echo "::error::fx did not finish within $minutes minutes (timeout_minutes). If its log below says it is waiting for a connection, the model endpoint was unreachable." >&2
+  tail -5 "$RUNNER_TEMP/fx-stderr.log" >&2 || true
+  exit 1
+fi
 
 if [ ! -s "$out" ]; then
   echo "::error::fx produced no output (exit $fx_status). Last lines of its log:" >&2
@@ -36,13 +54,25 @@ steps=$(jq -r '.steps // 0' "$out")
 in_tokens=$(jq -r '.usage.input_tokens // 0' "$out")
 out_tokens=$(jq -r '.usage.output_tokens // 0' "$out")
 
+# Failed with no step taken and no final answer: the request never got going
+# — a bad key, a 402 from the gateway budget. `output` then holds fx's error
+# line (`.error` stays null), which is not an answer, so fail here, before
+# response_path is set, and the comment says the run failed.
+if [ "$exit_code" != "0" ] && [ "$steps" = "0" ] && [ -z "$(jq -r '.final_output // ""' "$out")" ]; then
+  echo "::error::fx failed before doing anything: $(jq -r '.output // ""' "$out" | head -1)" >&2
+  exit 1
+fi
+
 # `final_output` is empty when the run ended before the model finished — a step
 # cap, a denied tool it could not work around, a provider error. Fall back to
 # the accumulated output so the comment says something rather than nothing.
 jq -r 'if (.final_output // "") != "" then .final_output else (.output // "") end' "$out" > "$response_path"
 
 if [ ! -s "$response_path" ]; then
-  echo "::error::fx returned no answer (exit_code $exit_code). Error field: $(jq -r '.error // "none"' "$out")" >&2
+  # fx leaves `.error` null on a failed request and puts the reason, "HTTP 401"
+  # and the like, on stderr only, so the log is what says why.
+  echo "::error::fx returned no answer (exit_code $exit_code). $(jq -r '.error // empty' "$out") Last lines of its log:" >&2
+  tail -5 "$RUNNER_TEMP/fx-stderr.log" >&2 || true
   exit 1
 fi
 

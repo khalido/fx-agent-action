@@ -288,9 +288,9 @@ a DeepSeek key to the gateway (2026-09-11); the gateway then answers with
 `GET /v1/generation?id=<id>` on the gateway returns that generation's
 `upstream_inference_cost`, `provider_name`, `latency` and token counts. So
 the helper sums the real charges and the footer says which provider served
-the run, which is the number to watch given how much the nine DeepSeek
-providers differ. The list-price estimate from tokens, marked `≈`, is the
-fallback when the lookups fail. The gateway budget no longer caps a BYOK
+the run, which is the number to watch given how much the DeepSeek
+providers differ; `provider_order` picks among them. The list-price
+estimate from tokens, marked `≈`, is the fallback when the lookups fail. The gateway budget no longer caps a BYOK
 model; the provider's account does.
 
 **Cost and tokens come from `fx usage --json`, not from `fx ask`.** `ask`
@@ -419,98 +419,89 @@ Every consumer is a repo KO can reach, which is what makes this safe.
 token for a named bot, and for CI to run on what it pushes. No hosted service,
 ever — that is the line between this and the opencode model.
 
-## fx facts checked against 0.0.10
+## fx facts checked against 0.0.11
 
 Verified against the binary, so nobody re-checks them from memory. Recheck
-when fx's version in a footer moves.
+when fx's version in a footer moves: install the new release into a scratch
+directory (`FX_INSTALL_DIR=<dir> bash setup.sh <tag>`, with `<dir>` on `PATH`
+or the installer edits your shell rc), then run one cheap `fx ask` and render
+its session. Rewrite a fact when it changes; do not add a dated one on top.
 
-- **`fx ask --system` replaces fx's built-in base prompt**, it does not
-  prepend. Moving the runtime block into `--system` would delete fx's own
-  instructions. Prepending, as `build-prompt.sh` does, is right.
-- **A checkout's `.mcp.json` is inert.** Project MCP servers start pending and
-  stay disconnected until trusted from the profile, which is fresh every job.
-  fx starts no process and reads no environment value for them. Do not "fix"
-  this with `fx mcp trust approve-all`.
-- **`fx background` does not exist**, though the CLI docs page lists it.
-  `fx resume` and `fx replay` exist but are missing from `fx --help`. This is
-  the concrete case behind "the binary's `--help` wins".
-- **`fx pr` is not used.** It drafted the PR text until 2026-09-14, a second
-  billed request with a `Title:` line to parse; the agent now writes the
-  title and body itself into `.agent-pr.md`. `fx pr --create` publishes
-  through `gh` with no branch, no `--draft` and no body file, so it was never
-  a substitute for `open-pr.sh` either.
-- **Session JSON is `execution.schema_version` 3**, still, on 0.0.9 — the
-  file on disk moved to `schema_version` 4 and grew a `title`, but the shape
-  `fx session <id> --json` hands back per turn did not. Verified by rendering
-  a 0.0.9 session through it. That file depends on the shape:
-  `history[].user.text`, `history[].assistant`,
+**Waiting and failing**
+
+- **`fx ask` waits forever for an endpoint it cannot reach** (since 0.0.11).
+  Measured against a dead endpoint: "Connection lost · waiting for
+  connection" every 5s, no JSON, no exit. Hence `timeout` in `run-fx.sh` and
+  `memory.sh`. A 401 exits in seconds.
+- **A failed request puts its error in `output`**, not `error`, which stays
+  null: `{"output":"AI_GATEWAY_API_KEY authentication failed · HTTP 401",
+  "final_output":"","exit_code":1,"steps":0,"auth_failure":{...}}`. So
+  `run-fx.sh` fails on exit ≠ 0 with no steps and no `final_output`, rather
+  than posting that line as the answer.
+
+**Settings and the checkout**
+
+- **The global settings file outranks `.fx.json`** for `max_agent_steps`,
+  `max_tool_result_bytes`, `context`, `provider_order` and `provider_strict`,
+  all of which a checkout may set. Measured for routing: a repo file with
+  `provider_strict` to a provider that does not exist fails the run with HTTP
+  400; a global `provider_order: []` clears it. `model`, `permission_mode`,
+  `providers` and `provider` in a repo file are refused
+  (`ignored_project_user_only_setting`), so a PR cannot point the gateway key
+  at another endpoint.
+- **`fx status --json` reports model, mode and step limit, and nothing
+  else we set**: not effort, not routing, not rules (`fx permissions --json`
+  has those). Effort and routing cannot be read back; fx refusing a malformed
+  file is the check.
+- **Rule keys are not validated**, and an unparseable file is dropped whole.
+  See the decisions above; it is why Configure reads back.
+- **`fx doctor --json` runs no model call** and names a checkout's `.fx.json`
+  in its `config` check; Configure logs it.
+- **A checkout's `.mcp.json` is inert.** Project MCP servers stay pending
+  until trusted from the profile, which is fresh every job. Do not "fix" this
+  with `fx mcp trust approve-all`.
+- **fx's own default model is `spacexai/grok-4.7`** (docs still say
+  `moonshotai/kimi-k3`). Only reached if our settings file were dropped, which
+  the read-back catches.
+
+**Prompt and context**
+
+- **`fx ask --system` replaces fx's base prompt**, so the runtime block is
+  prepended to the prompt instead, as `build-prompt.sh` does.
+- **The workspace's `AGENTS.md` is in context before the first tool call**:
+  a question about it answers in 0 steps. So the base block names only the
+  precedence rule. CLAUDE.md is not loaded. This is also where the cost sits:
+  about 41k input tokens per request on this repo, most of it this file.
+- **Subagents work in `fx ask`** and inherit the parent's restrictions. The
+  prompt does not mention them: notes finish in 6 to 32 steps, nothing is
+  step-starved.
+
+**Sessions and spend**
+
+- **Session JSON is `execution.schema_version` 3**, per turn, on 0.0.11.
+  `session-html.py` depends on `history[].user.text`, `history[].assistant`,
   `execution.tool_steps[].{assistant,tool_calls,tool_results}`,
-  `tool_calls[].{id,name,arguments_json,provider_result}`,
+  `tool_calls[].{id,name,arguments_json,provider_result}` and
   `tool_results[].{tool_call_id,tool_name,status,output,preview,truncated,
   output_bytes,stored_output_bytes,provider_native,permission_feedback}`.
   When the version moves, that file is what breaks.
-- **0.0.10 changed nothing this action depends on.** Rechecked on the day it
-  shipped: `execution.schema_version` is still 3 and `session-html.py` renders
-  a 0.0.10 session, `fx ask`'s flags are identical, and the top-level command
-  list is unchanged. Its headline is speed — turns up to 1.6× faster, model
-  requests starting up to 2.5× faster — which on a private repo is billed
-  runner minutes, so watch the footer's seconds against the 0.0.9 baseline of
-  56–125s for a note. Nothing to change: the cache is keyed on the resolved
-  release tag (`action.yml:284`), so a new release busts it and CI installs
-  0.0.10 by itself. One improvement worth watching rather than acting on:
-  "shell failures now give the model clearer recovery guidance" — a 0.0.9 run
-  burned about five steps flailing on a stub script, and scratch mode is where
-  that shows up.
-- **The workspace's `AGENTS.md` is in context before the first tool call.**
-  Measured: `fx ask` a question about this repo's own file answers in 0 steps.
-  So an instruction to "read AGENTS.md" buys a tool call for text the model
-  already has; only the precedence rule is worth the words. CLAUDE.md is not
-  mentioned in fx's docs, so that one still needs reading. This is also where
-  the cost sits — 30 KB of `AGENTS.md` here against a 15 KB assembled prompt,
-  which is the channel arxiv 2602.11988 measures when it finds context files
-  raise inference cost.
-- **`fx doctor --json` runs no model call** and names `.fx.json` in its
-  `config` check when the checkout supplies one; the Configure step logs it.
-- **Subagents inherit the parent's restrictions**, so there is nothing to deny
-  for safety; they cost tokens the footer's `ask`-side counts miss, which is
-  the other reason tokens come from `fx usage`.
-- **fx exposes no gateway provider routing, tested.** The gateway picks among
-  nine providers for a DeepSeek model, at different speeds, and honours
-  `providerOptions.gateway.{order,only,sort}` per request: a direct call with
-  `only: ["no-such-provider"]` errors and lists the nine. The same setting
-  under `provider_options`, `providerOptions` or `gateway` in
-  `~/.fx/settings.json` is ignored silently, the request succeeds, and fx
-  warns about none of the unknown keys (2026-09-11, fx 0.0.8). BYOK for a
-  provider makes the gateway use that provider first; that is the only pin
-  available today. A feature request is drafted in the session scratchpad.
-- **No provider on the gateway's side frees a runner from the gateway key.**
-  Codex and Grok need a browser sign-in saved per machine; `VERCEL_OIDC_TOKEN`
-  is issued by a Vercel runtime, not a GitHub one.
-- **Generated session titles are free here** (0.0.9's "New conversations get a
-  short title from the first prompt"). A one-tool-call `fx ask` writes exactly
-  one `generation` line to `~/.fx/usage.jsonl`, and the title lands in
-  `session.json` anyway, so nothing extra is billed and there is nothing to
-  turn off in the settings file — the toggle is `/settings`, interactive only.
-- **`fx issue` exists as of 0.0.9**, `fx issue [--auto] [--create] [context]`,
-  and it publishes through `gh` exactly as `fx pr --create` does. Same verdict:
-  the action drafts and creates with `gh` itself, so there is nothing to adopt.
-- **Subagents work in `fx ask`, and the prompt says nothing about them.**
-  Measured on 0.0.9: "run two subagents in parallel, one per file" produced two
-  `subagent` tool calls inside one step, headless. Left unmentioned on purpose
-  — notes finish in 6 to 32 steps against a cap of 60, so nothing here is step
-  starved, and a delegate-by-default hint on a flash model buys tokens for
-  nothing. Revisit if runs start hitting the cap. 0.0.9's changelog says a
-  subagent can carry its own model and effort while the docs page still says
-  the child inherits the parent's; which one the binary does is unverified,
-  and nothing in the action depends on the answer.
-- **`effort` now bites, and it is the one setting the Configure step cannot
-  assert.** The input defaults to empty and the step adds `effort` to the
-  settings file only when it is set, so an ordinary run is fx's `auto`. 0.0.9
-  fixed the gateway ignoring the selected effort on chat requests, which is
-  what makes the input worth using on a note that comes out shallow. But
-  `fx status --json` does not report effort, so unlike model, mode and step
-  limit there is nothing to read back — a typo in the value is caught by fx
-  refusing the file, not by our check.
+- **`fx usage --json` `.totals`** has tokens, cache tokens, `request_count`
+  and `spend`; `spend` is 0 under BYOK. `fx ask` counts the main agent only.
+- **Session titles cost nothing**: no extra `generation` line in the ledger.
+
+**Commands**
+
+- **`fx background` does not exist**, though the docs list it; `fx resume`
+  and `fx replay` exist but are not in `fx --help`. The binary wins.
+- **`fx pr` and `fx issue` are not used.** Both publish through `gh` with no
+  branch, no draft and no body file; `open-pr.sh` does that job.
+- **`fx ask` takes `--model`, `--effort`, `--provider-order` and `--image`**
+  per run. The action still uses the settings file, so there is one owner per
+  value and a read-back. `--image` is the way in for issue screenshots if the
+  default model ever has vision.
+- **No gateway-side provider frees a runner from the gateway key.** Codex and
+  Grok need a browser sign-in; `VERCEL_OIDC_TOKEN` comes from a Vercel
+  runtime, not a GitHub one.
 
 ## Do we need actions/toolkit?
 

@@ -8,6 +8,33 @@ break and how a release is cut.
 
 ## [Unreleased]
 
+Checked against fx 0.0.11.
+
+### Added
+
+- `timeout_minutes`, default 10. Since 0.0.11 fx waits indefinitely for a
+  model endpoint it cannot reach, so a gateway outage ran until the job's own
+  limit, which cancels the job and posts nothing. Now the run fails and the
+  comment says why. The memory compaction gets five minutes. `triage.yml`'s
+  job limit goes from 10 to 15 minutes to stay above it.
+- `provider_order`, the gateway providers to try first. The action always
+  writes it, empty or not, because a checkout's `.fx.json` can set it too and
+  `fx status` does not report it.
+
+### Changed
+
+- Answers cite code as permalinks at the commit the agent read, and the
+  footer names that commit, so a line number in an old comment still points
+  at the right line.
+- Answers to a question have a ceiling, 250 words, and come in short
+  paragraphs with the answer on the first line.
+
+### Fixed
+
+- A run that fails before fx does anything, a bad key or a spent gateway
+  budget, is red. It used to post fx's error line as the answer on a green
+  run. The log now shows fx's own error instead of "Error field: none".
+
 ## [1.1.0] - 2026-09-16
 
 The agent decides. `/fx pr` is gone as a phrase: a run in `agent` mode, the
