@@ -97,7 +97,10 @@ save)
       cat "$file"
     } > "$prompt"
     # No GH_TOKEN for fx: the step that calls this has one for the save below.
-    if compacted=$(env -u GH_TOKEN fx ask --json --no-save --quiet -- "$(cat "$prompt")" 2>/dev/null | jq -r '.final_output // empty') \
+    # A time limit, because fx waits indefinitely for an endpoint it cannot
+    # reach; `timeout` is GNU, so a runner without it goes without.
+    limit=(); command -v timeout >/dev/null && limit=(timeout -k 30 300)
+    if compacted=$(env -u GH_TOKEN ${limit[@]+"${limit[@]}"} fx ask --json --no-save --quiet -- "$(cat "$prompt")" 2>/dev/null | jq -r '.final_output // empty') \
        && [ -n "$compacted" ] && [ "$(printf '%s\n' "$compacted" | wc -l | tr -d ' ')" -le "$((cap + 5))" ]; then
       printf '%s\n' "$compacted" > "$file"
       status=compacted

@@ -148,6 +148,23 @@ inputs:
       lever on a note that comes out shallow.
     required: false
     default: ''
+  provider_order:
+    description: >-
+      Gateway providers to try first for the model, up to 8 comma-separated
+      slugs as the gateway spells them (`deepseek, fireworks`), then its default
+      routing. Empty is the gateway's own choice. Set here either way, so a
+      repo's `.fx.json` cannot route the run.
+    required: false
+    default: ''
+  timeout_minutes:
+    description: >-
+      Stop fx after this many minutes and report the run as failed. fx waits
+      indefinitely for a model endpoint it cannot reach, so without this an
+      outage runs until the job's own limit, which cancels the job and posts
+      nothing. Keep it a few minutes under the job's `timeout-minutes`, which
+      also covers installing fx.
+    required: false
+    default: '10'
   post:
     description: >-
       `comment` (default) posts the answer on the triggering issue or PR,
@@ -430,7 +447,11 @@ runs:
     # written here outranks it (verified: a repo file saying 7 steps loses to
     # 30 in this file), so the three are set explicitly rather than left to
     # whatever branch is checked out. model and permission_mode in a repo file
-    # are refused by fx itself.
+    # are refused by fx itself. It can also set provider_order and
+    # provider_strict, which fx status does not report, so both are always
+    # written here: an empty list in this file clears the checkout's (tested
+    # on 0.0.11, a repo file restricting to a provider that does not exist
+    # fails the run without it).
     #
     # Then two assertions. A settings file fx cannot parse is dropped WHOLE,
     # silently, and the run continues on defaults: auto mode, no deny rules,
@@ -447,14 +468,21 @@ runs:
         MODEL: ${{ inputs.model }}
         MAX_STEPS: ${{ inputs.max_steps }}
         EFFORT: ${{ inputs.effort }}
+        PROVIDER_ORDER: ${{ inputs.provider_order }}
       run: |
         set -euo pipefail
         mkdir -p "$HOME/.fx"
         steps="${MAX_STEPS:-30}"
         echo "model=$MODEL" >> "$GITHUB_OUTPUT"
         tool_rule=allow; [ "$MODE" = "read" ] && tool_rule=deny
-        jq -n --arg model "$MODEL" --argjson steps "$steps" --arg effort "$EFFORT" --arg r "$tool_rule" \
+        # Validated here because fx drops a settings file it cannot parse
+        # whole, and provider_order is not in the read-back below.
+        providers=$(jq -nc --arg p "$PROVIDER_ORDER" '$p | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""))')
+        printf '%s' "$providers" | jq -e 'length <= 8 and all(test("^[A-Za-z0-9-]+$"))' >/dev/null \
+          || { echo "::error::provider_order takes up to 8 gateway provider slugs, letters, digits and dashes (got '$PROVIDER_ORDER')." >&2; exit 1; }
+        jq -n --arg model "$MODEL" --argjson steps "$steps" --arg effort "$EFFORT" --arg r "$tool_rule" --argjson po "$providers" \
           '{models:{gateway:$model}, max_agent_steps:$steps, max_tool_result_bytes:65536, context:true,
+            provider_order:$po, provider_strict:false,
             permission_mode:"auto", permission:{edit:{"*":$r}, shell:{"*":$r}}}
            + (if $effort != "" then {effort:$effort} else {} end)' > "$HOME/.fx/settings.json"
 
@@ -552,6 +580,7 @@ runs:
       env:
         PROMPT_PATH: ${{ steps.context.outputs.prompt_path }}
         MAX_COST: ${{ inputs.max_cost }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
       run: bash "${{ github.action_path }}/scripts/run-fx.sh"
 
     # Inline, not a script: a script here would be read from the directory it
@@ -676,6 +705,7 @@ runs:
         PR_UNPUSHED: ${{ steps.pr.outputs.pr_unpushed }}
         RUN_FAILED: ${{ steps.run.outcome }}
         MEMORY: ${{ steps.memory_save.outputs.memory }}
+        SHA: ${{ steps.context.outputs.sha }}
       run: bash "${{ github.action_path }}/scripts/post-comment.sh"
 
     - name: Take the reaction back off

@@ -156,9 +156,18 @@ case "${INPUT_MODE:-agent}" in
 esac
 
 # --- 1. where it is running --------------------------------------------------
+# The commit the agent reads, so a line number it cites names a version: a
+# comment says `memory.sh:113` and main moves on the next day. A permalink
+# stays right, a person can click it and an agent can open it. On a
+# pull_request event HEAD is GitHub's test merge, which lives only as long as
+# the PR's merge ref points at it; good enough for a review read that week.
+# The prefix is `working_directory`, which the agent's paths are relative to.
+sha="$(git rev-parse HEAD 2>/dev/null || true)"
+blob="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}/blob/$sha/$(git rev-parse --show-prefix 2>/dev/null || true)"
 {
   printf 'You are the fx coding agent, running inside a GitHub Actions runner on a\n'
   printf 'checkout of this repository'
+  [ -n "$sha" ] && printf ' at commit %s' "${sha:0:12}"
   [ -n "$issue" ] && printf ', triggered from #%s' "$issue"
   printf '.\n\n'
   cat <<TXT
@@ -313,20 +322,35 @@ TXT
 
 Your answer is posted as one comment on that thread, and nothing else you say
 or do is shown: no tool output, no working, no second message. It is read by a
-busy engineer who knows this codebase. Lead with the most useful thing and
+busy engineer who knows this codebase, and often by the next agent pointed at
+the thread. Put the answer in the first sentence, on a line of its own, and
 stop when you have said it — no preamble, no restating the question, no "let
 me check", and no hedging beyond labelling a guess as one. Match the depth to
-the ask unless your instructions set a length: a question gets an answer in a
-paragraph or two; "analyse", "report" or "deep dive" gets a one-paragraph
-TL;DR and then `###` sections. Markdown is fine, and a small table earns its
-place when you are comparing three or more things — rows that look wrong,
-candidates, options, before and after. Name the file someone should open and
-say what is in it; a list of paths is not an answer, and a number you worked
-out from what you read is worth more than another path. Say what the evidence
-supports and no more. If you found nothing useful, say so in one line. If you
-shipped a change, the comment links to the pull request: say in a sentence or
-two what you changed and what you left alone.
+the ask unless your instructions set a length: a question gets a few short
+paragraphs, 250 words at most; "analyse", "report" or "deep dive" gets a
+one-paragraph TL;DR and then `###` sections. Never one long paragraph: start a
+new one at each new point. Say each thing once; when you draft something for
+someone to paste, the draft replaces your analysis rather than repeating it.
+Markdown is fine, and a small table earns its place when you are comparing
+three or more things — rows that look wrong, candidates, options, before and
+after. Name the file someone should open and say what is in it; a list of
+paths is not an answer, and a number you worked out from what you read is
+worth more than another path. Say what the evidence supports and no more. If
+you found nothing useful, say so in one line. If you shipped a change, the
+comment links to the pull request: say in a sentence or two what you changed
+and what you left alone.
 TXT
+  # Only with a commit and a repository to build the link from; a local run
+  # of this script has neither, and a half-built URL is worse than none.
+  if [ -n "$sha" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
+    cat <<TXT
+
+When you cite a line, link it at this commit, so the reference still holds
+after the branch moves: [path/to/file.py:40](${blob}path/to/file.py#L40),
+with your real path, and \`#L40-L52\` for a range. Link each file once or
+twice where it matters, not every mention.
+TXT
+  fi
   printf '\n---\n\n'
 } >> "$prompt_path"
 
@@ -453,6 +477,7 @@ cat "$ctx" >> "$prompt_path"
   echo "issue_number=$issue"
   echo "prompt_path=$prompt_path"
   echo "mode=$mode"
+  echo "sha=$sha"
 } >> "$GITHUB_OUTPUT"
 
 echo "Prompt built for $mode mode: $(wc -c < "$prompt_path" | tr -d " ") bytes${issue:+, on #$issue}" >&2

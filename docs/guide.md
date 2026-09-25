@@ -254,11 +254,13 @@ those lookups fail does it fall back to a list-price estimate from the
 tokens, marked `≈`.
 
 Speed varies with who serves the model. The gateway routes a request for
-`deepseek/deepseek-v4.1-flash` to any of nine providers at different prices
-and speeds, and fx exposes no way to pin one. What does pin it: add your own
-DeepSeek API key to the gateway as BYOK, which the gateway then uses first for
-that provider, with fallback to the pool. DeepSeek's own endpoint has peak
-pricing, double between 01:00 and 04:00 and 06:00 and 10:00 UTC on weekdays.
+`deepseek/deepseek-v4.1-flash` to any of a dozen or more providers at
+different prices and speeds. `provider_order: deepseek, fireworks` tries
+those first, then the pool; the slugs are on the gateway's models page. A
+repo's `.fx.json` cannot change this, because the action always writes it.
+BYOK also pins: add your own DeepSeek API key to the gateway and it uses that
+provider first. DeepSeek's own endpoint has peak pricing, double between 01:00
+and 04:00 and 06:00 and 10:00 UTC on weekdays.
 
 Model choice is one input. `deepseek/deepseek-v4.1-flash` is the default; a
 note runs a few cents, a question about the same, and a change that ends in
@@ -280,6 +282,11 @@ Things that fail on the first day:
   `author_association` and the bot condition there.
 - **`prompt_file not found`** with no fallback. The path is relative to the
   checkout; the built-in note only fills in on `issues` events.
+- **`fx failed before doing anything`** with `HTTP 401` or `402`. The
+  gateway key is wrong, or its budget is spent.
+- **`fx did not finish within 10 minutes`**. fx waits for a model endpoint it
+  cannot reach rather than giving up, so an outage ends here. Rerun later, or
+  raise `timeout_minutes` if the job was genuinely long.
 - **`model_not_found`** from the gateway. The model id left the catalog, which
   preview ids do. Check <https://ai-gateway.vercel.sh/v1/models>.
 - **PR push fine, PR creation 403.** The repo or org setting above.
