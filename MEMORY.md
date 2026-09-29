@@ -15,3 +15,4 @@ in place, under 80 lines. A model of the repo, not a diary of runs.
 - 2026-09-14: Memory compaction works (88 lines in, 25 out). Never test it with a tiny memory_lines on this repo's branch; point memory_repo at a scratch repo.
 - 2026-09-15: prompts/issue.md names commands read mode cannot run on purpose (#16); the base block tells read mode to read files instead. Not an oversight.
 - 2026-09-29: check.yml covers check-actor.sh with a stub gh; memory.sh is tested only by hand, with a stub gh on PATH.
+- 2026-09-29: memory.sh's 409 merge uses `git merge-file -p --union`, which exits 0 on a content conflict (git 2.55; plain merge-file exits 1), so the conflict-then-lost path in #10 is closed. The remaining dropped-run path is the one-shot retry: a third writer 409ing the retry PUT still loses the run at the final warning. The pre-compaction catch-up merge is unguarded, so a git error there aborts the save under set -e.
