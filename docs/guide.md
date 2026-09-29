@@ -179,9 +179,11 @@ rather than skipping it, so a misconfigured workflow is visible:
   without the `[bot]` suffix, or `*`, and on issue and PR events the same
   read-only restriction applies. This is what stops two bots looping.
 
-Keep the `if:` on the job as well. `author_association` in it saves booting a
-runner for a stranger's `/fx`, but `MEMBER` means org member, not write
-access, so it is a filter and not the check.
+Keep the `if:` on the job as well, as a filter that saves booting a runner;
+the action's write check is the real one. On a public repo the filter is
+`author_association`, which skips a stranger's `/fx`. On a private repo the
+example drops it, because it misses an org member whose membership is
+private, and everyone who can comment there already has access.
 
 ## Pull requests
 

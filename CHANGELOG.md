@@ -28,6 +28,10 @@ Checked against fx 0.0.11.
   at the right line.
 - Answers to a question have a ceiling, 250 words, and come in short
   paragraphs with the answer on the first line.
+- The example workflow's `if:` (`examples/fx.yml`, the README) catches
+  `/fx` at the start of any line, not only the first, and on a private repo
+  leaves the author check to the action: `author_association` skipped an org
+  admin whose membership is private. Re-copy it, or make the same two edits.
 - The memory prompt keeps issue status and line numbers out of `MEMORY.md`:
   the first goes stale when the issue closes, the second with every commit.
 

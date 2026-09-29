@@ -25,10 +25,12 @@ jobs:
   fx:
     if: >-
       (github.event_name == 'issues' && github.event.issue.user.type != 'Bot' &&
-       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
-      || (github.event_name == 'issue_comment' && (startsWith(github.event.comment.body, '/fx') || contains(github.event.comment.body, ' /fx')) &&
+       (github.event.repository.private ||
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)))
+      || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/fx') &&
           github.event.comment.user.type != 'Bot' &&
-          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+          (github.event.repository.private ||
+           contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:

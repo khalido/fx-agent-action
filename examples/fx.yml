@@ -48,27 +48,31 @@ on:
 
 jobs:
   fx:
-    # Only people with write access, never a bot. The `if:` skips without
-    # booting a runner; the action checks both again and fails the run if
-    # either is wrong. On an issue event the note runs; on a comment, the
-    # phrase has to be there.
+    # Only people with write access, never a bot. The action checks both and
+    # fails the run if either is wrong; the `if:` only saves booting a runner.
+    # On an issue event the note runs; on a comment, the phrase has to be there.
     #
-    # `startsWith` or a leading space, not a bare `contains`: expressions have
-    # no regex, and a plain `contains(body, '/fx')` also matches a comment that
-    # merely mentions a path like `.github/fx/issue.md`. That only costs a
-    # runner boot — the action skips a comment it was not addressed in — but
-    # there is no reason to pay it. Both functions are case-insensitive.
+    # On a private repo the action's write check is the whole gate: whoever
+    # can open an issue there already has access, and `author_association`
+    # misses an org member whose membership is private (seen on a private org
+    # repo: the admin's own issue skipped). On a public repo it stays, so a
+    # stranger's issue skips instead of turning the Actions list red.
+    #
+    # A bare `contains`: `/fx` after a blank line has no space before it, and
+    # expressions have no regex. A comment that merely mentions
+    # `.github/fx/issue.md` boots a runner, and the action skips it.
     if: >-
       (
         github.event_name == 'issues' &&
         github.event.issue.user.type != 'Bot' &&
-        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+        (github.event.repository.private ||
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
       ) || (
         github.event_name == 'issue_comment' &&
-        (startsWith(github.event.comment.body, '/fx') ||
-         contains(github.event.comment.body, ' /fx')) &&
+        contains(github.event.comment.body, '/fx') &&
         github.event.comment.user.type != 'Bot' &&
-        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+        (github.event.repository.private ||
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
       ) || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20

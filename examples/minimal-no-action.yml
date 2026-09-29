@@ -28,7 +28,7 @@ jobs:
   fx:
     if: >-
       github.event.issue.pull_request == null &&
-      (startsWith(github.event.comment.body, '/fx') || contains(github.event.comment.body, ' /fx')) &&
+      contains(github.event.comment.body, '/fx') &&
       github.event.comment.user.type != 'Bot' &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
