@@ -34,10 +34,10 @@ before a change ships, and `gh`, `jq` and `python3` are already on every runner.
 | `scripts/session-html.py` | `fx session --json` → one readable HTML file |
 | `scripts/sanitize.py` | strips hidden markup out of the untrusted block |
 | `scripts/run-fx.sh` | one `fx ask --json`, pull out the answer, scrub secrets, record the spend |
-| `scripts/redact.py` | the secret scrubber, shared by the answer and the session |
+| `scripts/redact.py` | the secret scrubber, shared by the answer, the PR text, the session and the memory file |
 | `scripts/post-comment.sh` | upsert one comment, found by a hidden marker |
 | `scripts/open-pr.sh` | when the agent wrote `.agent-pr.md` and the tree changed: branch, commit, push, open the draft PR |
-| `scripts/cost.sh` | the run's dollars from fx's ledger, or a list-price estimate from tokens when the ledger says zero (BYOK); used after `fx ask` and a memory compaction |
+| `scripts/cost.sh` | the run's dollars, priced per generation: fx's ledger, the gateway's record for a BYOK one, list price as a fallback; used after `fx ask` and a memory compaction |
 | `scripts/memory.sh` | `fetch` the memory file from its branch before the run, `save` it after, compacting when over the cap |
 
 If a change wants another file, ask whether it belongs in the prompt instead.
@@ -87,9 +87,10 @@ what is presumably the same reason; the two that use `@` own the handle.
 for anyone who prefers a mention.
 
 **One agent, three modes, and the modes are not three mechanisms.** Every run
-is `auto` in `~/.fx/settings.json`. `agent` and `answer` allow `edit` and
-`shell` by rule — allow rules rather than leaving it to `auto`, because auto's
-review is a billed helper call per unresolved action — and differ only in
+is `auto` in `~/.fx/settings.json`. `agent` and `answer` allow edits and
+the shell by rule (the shell under two keys; see the fx facts) — allow
+rules rather than leaving it to `auto`, because auto's review is a billed
+helper call per unresolved action — and differ only in
 whether the PR step runs and what the base block tells the model. `read`
 denies both; the rules hide those tools, so the model never spends a step
 finding out and the run exits 0. Never `full-access`: it disables the checks
@@ -266,6 +267,12 @@ because every consumer uses the gateway by construction. Frontmatter is
 `.agent-memory/` before the run through the contents API, quoted in the
 prompt, pushed back after the run if changed, with the blob sha so a
 concurrent run gets a 409 and a three-way merge rather than a lost write.
+The merge is `--union`: two runs that each append a line always collide on
+the last hunk, and a plain merge threw one run's memory away, four of seven
+concurrent runs on 2026-09-14 (#10). One fact per line makes both sides the
+right answer. The file is scrubbed with `redact.py` on fetch and before every
+push, the merge's included: it is published to a branch and quoted into every
+later prompt.
 No MCP tool, because a tool the model may choose to call means some runs
 write nothing; the agent uses its file tools and the action does the rest.
 Only runs whose actor has write access save it: `check-actor.sh` outputs
@@ -281,31 +288,37 @@ churn, an edit-in-place, delete-stale, earn-its-place contract produced
 durable entries. `open-pr.sh` filters `.agent-memory/` out of the PR
 pathspec. The survey behind the choice of store is `docs/agent-memory.md`.
 
-**Under BYOK the ledger says zero, so `cost.sh` asks the gateway.** KO added
+**Under BYOK the ledger says zero, so `cost.sh` asks the gateway, per
+generation.** KO added
 a DeepSeek key to the gateway (2026-09-11); the gateway then answers with
 `cost: 0, is_byok: true` and fx's ledger records no spend. But
 `~/.fx/usage.jsonl` keeps every generation id, and
 `GET /v1/generation?id=<id>` on the gateway returns that generation's
 `upstream_inference_cost`, `provider_name`, `latency` and token counts. So
-the helper sums the real charges and the footer says which provider served
-the run, which is the number to watch given how much the DeepSeek
+each generation is priced on its own: the ledger's `total_cost` when it is
+above zero, the gateway's record when it is zero. One run is often both — the
+auto reviewer is gateway-billed next to a BYOK main model — and summing the
+ledger's spend alone once reported a tenth of the real figure. The footer
+says which provider served the run, which is the number to watch given how much the DeepSeek
 providers differ; `provider_order` picks among them. The list-price
-estimate from tokens, marked `≈`, is the fallback when the lookups fail. The gateway budget no longer caps a BYOK
-model; the provider's account does.
+estimate from tokens, marked `≈`, covers a generation whose lookup fails; a
+record 404s for a few seconds after the generation, so there is one retry.
+The gateway budget no longer caps a BYOK model; the provider's account does.
 
-**Cost and tokens come from `fx usage --json`, not from `fx ask`.** `ask`
-reports tokens and no price, and only the main agent's tokens: subagents, the
-helper models (`auto` review, the vision fallback) and Exa are excluded. `fx
-usage` keeps a local ledger with everything in it, dollars included, and the
-runner's HOME is new every job, so the only spend in it is this run's. A
-memory compaction is a second billed request, and `memory.sh` reads the ledger
+**Cost and tokens come from fx's ledger, not from `fx ask`.** `ask` reports
+tokens and no price, and only the main agent's tokens: subagents, the helper
+models (`auto` review, the vision fallback) and Exa are excluded. The ledger
+has everything, and the runner's HOME is new every job, so the only spend in
+it is this run's. Tokens come from `fx usage --json` totals; dollars from
+`~/.fx/usage.jsonl`, one line per generation, priced as above. A memory
+compaction is a second billed request, and `memory.sh` reads the ledger
 again after it so the footer and the `cost` output cover both.
 
 **Secrets are scrubbed from anything published.** fx never prints the key, but
 its shell tool is a child process and inherits the environment — measured, an
 agent-run `test -n "$AI_GATEWAY_API_KEY"` reports PRESENT. GitHub
 masks secrets in logs, not in API bodies or artifacts. Hence `redact.py`, on
-both the answer and the session HTML. It is a backstop, not the control: the
+the answer, `.agent-pr.md`, the session HTML and `MEMORY.md`. It is a backstop, not the control: the
 control is a gateway key with its own budget, so a leak costs the budget and one
 rotation.
 
@@ -453,6 +466,13 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
   else we set**: not effort, not routing, not rules (`fx permissions --json`
   has those). Effort and routing cannot be read back; fx refusing a malformed
   file is the check.
+- **The shell takes two rule keys.** An allow binds under `bash` and not
+  under `shell`: with `shell` alone every command went to the auto reviewer
+  (`openai/gpt-5.6-luna` on 0.0.11), one billed call each, and a caution
+  blocks the command. A deny hides the tool under `shell`, but under `bash`
+  only refuses the call once the model has tried it. So Configure writes
+  both, always the same action. This was wrong here until 2026-09-29; the
+  agent's own memory caught it on 0.0.9 and nobody acted on it.
 - **Rule keys are not validated**, and an unparseable file is dropped whole.
   See the decisions above; it is why Configure reads back.
 - **`fx doctor --json` runs no model call** and names a checkout's `.fx.json`

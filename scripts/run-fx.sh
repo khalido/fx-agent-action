@@ -79,10 +79,7 @@ fi
 # Scrub secrets out of the answer, here, once, before anything downstream reads
 # the file. See scripts/redact.py for why this is not covered by GitHub's log
 # masking.
-python3 -c "import sys; sys.path.insert(0, '$(dirname "$0")'); import redact; \
-  found = redact.redact_file(sys.argv[1]); \
-  [print(f'::warning::Removed {n} from the agent answer before posting it.') for n in found]" \
-  "$response_path"
+python3 "$(dirname "$0")/redact.py" "$response_path" "the agent answer"
 
 # `fx ask --json` reports tokens but no price. `fx usage` does report dollars —
 # it keeps a local ledger — and the runner's HOME is new every job, so the only
@@ -91,8 +88,9 @@ python3 -c "import sys; sys.path.insert(0, '$(dirname "$0")'); import redact; \
 # main agent, while the ledger includes helper models and provider tools,
 # which is what the dollars cover. One source for both numbers in the footer.
 usage=$(fx usage --json 2>/dev/null || true)
-# cost.sh: the ledger's dollars, or a list-price estimate from tokens when the
-# ledger says zero (a BYOK key). Prints cost= and cost_estimated= lines.
+# cost.sh: dollars priced per generation from the ledger, the gateway's record
+# for a BYOK one, list price as a fallback. Prints cost=, cost_estimated= and
+# providers= lines.
 cost_lines=$(bash "$(dirname "$0")/cost.sh" 2>/dev/null || true)
 cost=$(printf '%s\n' "$cost_lines" | sed -n 's/^cost=//p')
 cost_estimated=$(printf '%s\n' "$cost_lines" | sed -n 's/^cost_estimated=//p')

@@ -302,11 +302,14 @@ TXT
 is quoted below the thread. Read it before you start. It is a model of how
 this repository and its people work, not a diary: keep only what sharpens a
 future run's judgement, recurring traps, preferences, decisions and why, where
-things live. Before you finish, edit it with your file tools: correct or
-delete lines you now know are wrong or stale rather than adding on top, bump
-the date on a line this run confirmed, and add a line only when it earns its
-place, dated. Keep it under ${MEMORY_LINES:-80} lines. It is saved to its own
-branch after the run and is never part of a pull request or of your answer.
+things live. Not the state of one issue — its thread holds that, and the line
+goes stale when the issue closes. No line numbers: they move with every
+commit, so name the file and the function. Before you finish, edit it with
+your file tools: correct or delete lines you now know are wrong or stale
+rather than adding on top, bump the date on a line this run confirmed, and
+add a line only when it earns its place, dated. Keep it under
+${MEMORY_LINES:-80} lines. It is saved to its own branch after the run and is
+never part of a pull request or of your answer.
 TXT
     else
       cat <<TXT

@@ -26,6 +26,21 @@ mkdir -p "$state"
 
 out() { echo "$1" >> "${GITHUB_OUTPUT:-/dev/null}"; }
 
+# The same scrubber as the answer and the session: any env value that looks
+# like a credential comes out of the file. On save, right before each push,
+# because a file pushed to a branch is published and every later prompt
+# quotes it. On fetch too, so a secret that reached the branch before this
+# existed is never quoted into a prompt. A scrub that cannot run is a push
+# that does not happen.
+scrub() {
+  python3 "$(dirname "$0")/redact.py" "$file" MEMORY.md
+}
+unsaved() {
+  echo "::warning::memory: could not scrub MEMORY.md for secrets, so it was not saved." >&2
+  out "memory=unsaved"
+  exit 0
+}
+
 # gh api prints a 4xx body to stdout and exits 1; the body carries "status".
 api_get() {
   local resp
@@ -68,7 +83,10 @@ fetch)
     out "memory=unavailable"
     exit 0
   fi
+  # before.md is the copy as fetched, so a secret the scrub removes counts as a
+  # change and the cleaned file is pushed over it on save.
   cp "$file" "$state/before.md"
+  scrub || { echo "::warning::memory: could not scrub the fetched MEMORY.md; running without memory." >&2; rm -f "$file"; out "memory=unavailable"; exit 0; }
   out "memory_path=$file"
   ;;
 
@@ -81,6 +99,19 @@ save)
   fi
   status=updated
 
+  # Catch up with a run that saved while this one worked, BEFORE compacting:
+  # a union merge after a compaction puts every line it dropped back (#10).
+  # The 409 below still covers the few seconds between this read and the push.
+  sha=$(cat "$state/sha" 2>/dev/null || true)
+  if [ -n "$sha" ] && resp=$(api_get) && [ "$(printf '%s' "$resp" | jq -r '.sha')" != "$sha" ]; then
+    printf '%s' "$resp" | jq -r '.content' | base64 -d > "$state/theirs.md"
+    merged=$(git merge-file -p --union "$file" "$state/before.md" "$state/theirs.md")
+    printf '%s\n' "$merged" > "$file"
+    printf '%s' "$resp" | jq -r '.sha' > "$state/sha"
+    cp "$state/theirs.md" "$state/before.md"   # the base for a later 409
+    echo "memory: merged with a run that saved meanwhile" >&2
+  fi
+
   # Over the cap: one cheap model call rewrites the file. No tools, no session
   # saved. If the answer is empty or still too long, keep the agent's version
   # and say so; the next run tries again.
@@ -91,7 +122,7 @@ save)
       printf 'Rewrite the memory file below so it stays useful and fits in %s lines.\n' "$cap"
       printf 'Keep the first heading and its short description. Merge duplicates. Drop\n'
       printf 'lines that were true for one run only, or that later lines contradict.\n'
-      printf 'Keep the dated lines from the most recent runs. Newest first. Plain\n'
+      printf 'Keep the dated lines from the most recent runs, in the order given. Plain\n'
       printf 'Markdown, one fact per line, paths and issue numbers kept exactly.\n'
       printf 'Output only the new file contents. No preamble, no fences.\n\n'
       cat "$file"
@@ -113,6 +144,7 @@ save)
   fi
 
   sha=$(cat "$state/sha" 2>/dev/null || true)
+  scrub || unsaved
   content=$(base64 < "$file" | tr -d '\n')
   msg="agent memory: run $GITHUB_RUN_ID${GITHUB_EVENT_NAME:+ ($GITHUB_EVENT_NAME)}"
 
@@ -159,14 +191,20 @@ save)
       ;;
   esac
 
-  # 409: another run wrote first. Three-way merge: ours, the copy we started
-  # from, theirs. Clean merge → retry once. Conflict → warn, keep theirs.
+  # 409: another run wrote first. Three-way merge of ours, the copy we
+  # started from, and theirs, then retry once. `--union` keeps both sides of
+  # a conflict: two runs that each append a line land on the same last hunk
+  # every time, and a plain merge then threw one run's memory away — four of
+  # seven concurrent runs on one day (#10). The file is one fact per line, so
+  # both sides is right, and a duplicate is cleaned up by the next edit.
   if resp=$(api_get); then
     theirs="$state/theirs.md"
     printf '%s' "$resp" | jq -r '.content' | base64 -d > "$theirs"
     sha=$(printf '%s' "$resp" | jq -r '.sha')
-    if merged=$(git merge-file -p "$file" "$state/before.md" "$theirs" 2>/dev/null); then
+    if merged=$(git merge-file -p --union "$file" "$state/before.md" "$theirs" 2>/dev/null); then
       printf '%s\n' "$merged" > "$file"
+      # Lines from `theirs` came through the merge unscrubbed.
+      scrub || unsaved
       content=$(base64 < "$file" | tr -d '\n')
       if put >/dev/null; then
         echo "memory: merged with a concurrent run and saved" >&2
@@ -175,7 +213,7 @@ save)
       fi
     fi
   fi
-  echo "::warning::memory: another run changed MEMORY.md at the same time and the merge did not apply cleanly. This run's memory is lost; the branch is untouched." >&2
+  echo "::warning::memory: another run changed MEMORY.md at the same time and the merged file could not be saved either. This run's memory is lost; the branch is untouched." >&2
   out "memory=unsaved"
   ;;
 

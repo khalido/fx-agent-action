@@ -4,71 +4,91 @@
 # Prints lines for $GITHUB_OUTPUT: `cost=<dollars>`, `cost_estimated=true|false`,
 # `providers=<comma-separated provider slugs>`.
 #
-# Source, in order:
-#   1. fx's ledger (`fx usage --json`), when it has dollars.
-#   2. The gateway's own record of each generation, looked up by the ids fx
-#      writes to ~/.fx/usage.jsonl. A BYOK key makes the gateway bill nothing,
-#      so the ledger says zero, but the record still carries the provider's
-#      real charge (`upstream_inference_cost`), the provider that served the
-#      request, and the latency. Exact, peak pricing included.
-#   3. Tokens times the catalog's list price, marked estimated, if the lookups
-#      fail. Never fails the run: nothing to say prints nothing.
+# Priced per generation, from the ids fx writes to ~/.fx/usage.jsonl:
+#   1. The ledger's own `total_cost`, when it is above zero: the gateway billed
+#      it.
+#   2. Zero means a BYOK key: the gateway billed nothing, but its record of the
+#      generation (`GET /v1/generation?id=`) carries the provider's real charge
+#      (`upstream_inference_cost`) and who served it. Exact, peak pricing
+#      included.
+#   3. Tokens times the catalog's list price, marked estimated, for any
+#      generation the lookup could not answer.
+# Per generation, because one run can be both: a gateway-billed helper (the
+# auto reviewer) next to a BYOK main model. Summing only the ledger's spend
+# once dropped the BYOK half entirely. Never fails the run: nothing to say
+# prints nothing.
 set -euo pipefail
 
-# `env -u GH_TOKEN`: memory.sh calls this from the Save memory step, which
-# holds a token, and no fx process gets one. A ledger read runs no tools, so
-# this is the rule kept absolute rather than a hole closed.
-usage=$(env -u GH_TOKEN fx usage --json 2>/dev/null || true)
-[ -n "$usage" ] || exit 0
+ledger="$HOME/.fx/usage.jsonl"
+tmp="${RUNNER_TEMP:-/tmp}"
+gens="$tmp/fx-cost-generations.jsonl"
+jq -c 'select(.kind == "generation") | .fact | select(.id != null)
+       | {id, model, i: (.input_tokens // 0), o: (.output_tokens // 0), c: (.total_cost // 0)}' \
+  "$ledger" 2>/dev/null | jq -sc 'unique_by(.id) | .[]' > "$gens" 2>/dev/null || true
 
-spend=$(printf '%s' "$usage" | jq -r '.totals.spend // 0' 2>/dev/null || echo 0)
-tokens=$(printf '%s' "$usage" | jq -r '.totals.total_tokens // 0' 2>/dev/null || echo 0)
-
-if [ "$(printf '%s' "$spend" | jq -r '. > 0')" = "true" ]; then
-  printf 'cost=%s\ncost_estimated=false\n' "$spend"
+if [ ! -s "$gens" ]; then
+  # No per-generation ledger (an older fx): the totals are all there is.
+  # `env -u GH_TOKEN`: memory.sh calls this from a step that holds a token,
+  # and no fx process gets one.
+  spend=$(env -u GH_TOKEN fx usage --json 2>/dev/null | jq -r '.totals.spend // 0' 2>/dev/null || echo 0)
+  [ "$(printf '%s' "$spend" | jq -r '. > 0' 2>/dev/null)" = "true" ] && printf 'cost=%s\ncost_estimated=false\n' "$spend"
   exit 0
 fi
-[ "$tokens" -gt 0 ] 2>/dev/null || exit 0
 
-# --- 2. the gateway's per-generation records --------------------------------
-ledger="$HOME/.fx/usage.jsonl"
-if [ -s "$ledger" ] && [ -n "${AI_GATEWAY_API_KEY:-}" ]; then
-  ids=$(jq -r 'select(.kind == "generation") | .fact.id // empty' "$ledger" 2>/dev/null | sort -u | head -200 || true)
-  if [ -n "$ids" ]; then
-    records="${RUNNER_TEMP:-/tmp}/fx-generations.jsonl"
-    : > "$records"
+# --- 2. the gateway's record of each zero-cost generation ---------------------
+# A record 404s for a few seconds after the generation, so one retry pass.
+# Kept across calls: memory.sh calls this again after a compaction, and only
+# the compaction's generation is new by then.
+records="$tmp/fx-cost-records.jsonl"
+touch "$records"
+lookup() {
+  curl -fsS --max-time 10 "https://ai-gateway.vercel.sh/v1/generation?id=$1" \
+    -H "Authorization: Bearer $AI_GATEWAY_API_KEY" 2>/dev/null \
+    | jq -c --arg id "$1" '.data // empty | select(.upstream_inference_cost != null or .total_cost != null)
+        | {id: $id, u: (.upstream_inference_cost // .total_cost), p: (.provider_name // "")}' 2>/dev/null
+}
+unpriced() {
+  jq -rn --slurpfile g "$gens" --slurpfile r "$records" \
+    '($r | map(.id)) as $done | limit(200; $g[] | select(.c == 0 and (.i + .o) > 0) | .id | select(. as $x | $done | index($x) | not))'
+}
+missing=$(unpriced || true)
+if [ -n "${AI_GATEWAY_API_KEY:-}" ]; then
+  for attempt in 1 2; do
+    [ -n "$missing" ] || break
+    [ "$attempt" = 2 ] && sleep 5
     while IFS= read -r id; do
-      curl -fsS --max-time 10 "https://ai-gateway.vercel.sh/v1/generation?id=$id" \
-        -H "Authorization: Bearer $AI_GATEWAY_API_KEY" 2>/dev/null >> "$records" || true
-      echo >> "$records"
-    done <<< "$ids"
-    summary=$(jq -sc '
-      [ .[] | .data? // empty ] as $g
-      | if ($g | length) == 0 then empty else
-        { cost: ([ $g[] | (.total_cost // 0) + (if (.total_cost // 0) == 0 then (.upstream_inference_cost // 0) else 0 end) ] | add),
-          providers: ([ $g[] | .provider_name // empty ] | unique | join(",")),
-          n: ($g | length) }
-        end' "$records" 2>/dev/null || true)
-    if [ -n "$summary" ]; then
-      printf 'cost=%s\ncost_estimated=false\nproviders=%s\n' \
-        "$(printf '%s' "$summary" | jq -r '.cost')" "$(printf '%s' "$summary" | jq -r '.providers')"
-      echo "cost: $(printf '%s' "$summary" | jq -r '.n') generations looked up on the gateway; served by $(printf '%s' "$summary" | jq -r '.providers')" >&2
-      exit 0
-    fi
-  fi
+      lookup "$id" >> "$records" || true
+    done <<< "$missing"
+    missing=$(unpriced || true)
+  done
 fi
 
-# --- 3. list price from tokens ---------------------------------------------
-catalog="${RUNNER_TEMP:-/tmp}/fx-gateway-models.json"
-if [ ! -s "$catalog" ]; then
-  curl -fsSL --max-time 15 https://ai-gateway.vercel.sh/v1/models > "$catalog" 2>/dev/null || { rm -f "$catalog"; exit 0; }
+# --- 3. list price for whatever is still unpriced ------------------------------
+catalog="$tmp/fx-gateway-models.json"
+if [ -n "$missing" ] && [ ! -s "$catalog" ]; then
+  curl -fsSL --max-time 15 https://ai-gateway.vercel.sh/v1/models > "$catalog" 2>/dev/null || rm -f "$catalog"
 fi
-estimate=$(printf '%s' "$usage" | jq -r --slurpfile cat "$catalog" '
-  ($cat[0].data | map({key: .id, value: .pricing}) | from_entries) as $price
-  | [ .models[]?
-      | ($price[.model] // empty) as $p
-      | ((.totals.input_tokens // 0) * (($p.input // "0") | tonumber))
-        + ((.totals.output_tokens // 0) * (($p.output // "0") | tonumber)) ]
-  | add // empty' 2>/dev/null || true)
-[ -n "$estimate" ] || exit 0
-printf 'cost=%s\ncost_estimated=true\n' "$estimate"
+[ -s "$catalog" ] || echo '{"data":[]}' > "$catalog"
+
+summary=$(jq -sc --slurpfile r "$records" --slurpfile cat "$catalog" '
+  ($r | map({key: .id, value: .}) | from_entries) as $rec
+  | ($cat[0].data | map({key: .id, value: .pricing}) | from_entries) as $price
+  | map(
+      if .c > 0 then {cost: .c, est: false}
+      elif $rec[.id] then {cost: $rec[.id].u, est: false, p: $rec[.id].p}
+      elif (.i + .o) == 0 then {cost: 0, est: false}
+      elif $price[.model] then
+        {cost: (.i * ($price[.model].input // "0" | tonumber) + .o * ($price[.model].output // "0" | tonumber)), est: true}
+      else {cost: 0, est: true}
+      end)
+  | {cost: (map(.cost) | add), est: any(.[]; .est), providers: ([.[].p // empty | select(. != "")] | unique | join(",")),
+     looked_up: ([.[] | select(.p != null)] | length)}' "$gens" 2>/dev/null || true)
+[ -n "$summary" ] || exit 0
+
+printf 'cost=%s\ncost_estimated=%s\nproviders=%s\n' \
+  "$(printf '%s' "$summary" | jq -r '.cost')" \
+  "$(printf '%s' "$summary" | jq -r '.est')" \
+  "$(printf '%s' "$summary" | jq -r '.providers')"
+n=$(printf '%s' "$summary" | jq -r '.looked_up')
+[ "$n" -gt 0 ] && echo "cost: $n BYOK generations priced from the gateway; served by $(printf '%s' "$summary" | jq -r '.providers')" >&2
+exit 0

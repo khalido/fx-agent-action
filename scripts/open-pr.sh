@@ -70,10 +70,7 @@ fi
 # Scrub before anything is read out of it: the title becomes the commit
 # message and is pushed before the body is used. Not `|| true`: a scrub that
 # fails must stop the push, not let an unscrubbed title through.
-python3 -c "import sys; sys.path.insert(0, sys.argv[2]); import redact;
-found = redact.redact_file(sys.argv[1]);
-[print(f'::warning::Removed {n} from the pull request text before using it.') for n in found]" \
-  "$signal" "$(dirname "$0")"
+python3 "$(dirname "$0")/redact.py" "$signal" "the pull request text"
 
 # First non-empty line is the title, minus any heading marks or bold the model
 # added; everything after it is the body.
