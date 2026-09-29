@@ -28,12 +28,30 @@ Checked against fx 0.0.11.
   at the right line.
 - Answers to a question have a ceiling, 250 words, and come in short
   paragraphs with the answer on the first line.
+- The memory prompt keeps issue status and line numbers out of `MEMORY.md`:
+  the first goes stale when the issue closes, the second with every commit.
 
 ### Fixed
 
 - A run that fails before fx does anything, a bad key or a spent gateway
   budget, is red. It used to post fx's error line as the answer on a green
   run. The log now shows fx's own error instead of "Error field: none".
+- The shell's allow rule never bound. fx keys it `bash`; the action wrote
+  `shell`, so in `agent` and `answer` mode every command went to fx's auto
+  reviewer, a billed call each that could also block it. Both keys are
+  written now: `bash` for the allow, `shell` so read mode still hides the
+  tool rather than refusing it after a wasted step.
+- `MEMORY.md` is scrubbed for secrets before every push and after every
+  fetch, like the answer and the session (#15). It was the one published
+  path that skipped `redact.py`.
+- Two runs saving memory at once no longer lose one run's lines (#10). The
+  save catches up with the branch and merges before it compacts, the merge
+  keeps both sides, and compaction keeps the file's order instead of
+  reversing it.
+- The footer's cost covers the whole run when it mixes billing: a
+  gateway-billed helper next to a BYOK model reported only the helper,
+  about a tenth of the real figure. Each generation is priced on its own
+  now. Part of #11; the cache split is still to come.
 
 ## [1.1.0] - 2026-09-16
 

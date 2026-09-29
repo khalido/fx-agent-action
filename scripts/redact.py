@@ -9,10 +9,11 @@ the runner that log masking does not cover.
 
 Used by run-fx.sh (the answer), open-pr.sh (fx's whole PR draft, the moment it
 is written — the title is parsed out of it into a commit message that is pushed
-before the body is ever read) and session-html.py (the transcript). Not what fx
-writes to a FILE: that is not scanned, and a determined agent could put a
-secret there — which is one more reason the gateway key is budgeted and the
-write path is gated on people who could already push.
+before the body is ever read), session-html.py (the transcript) and memory.sh
+(MEMORY.md, which is pushed to a branch and quoted into every later prompt).
+Not any other file fx writes: a determined agent could put a secret in one
+and ship it in a pull request — which is one more reason the gateway key is
+budgeted and the write path is gated on people who could already push.
 """
 
 import os
@@ -53,3 +54,13 @@ def redact_file(path: str) -> list[str]:
         with open(path, 'w', encoding='utf-8') as fh:
             fh.write(text)
     return found
+
+
+if __name__ == '__main__':
+    # `python3 redact.py FILE WHAT`: scrub FILE in place and say what came out
+    # of it, WHAT naming the file for the reader of the log. Exits nonzero only
+    # if the scrub itself fails, which callers treat as "do not publish".
+    import sys
+    path, what = sys.argv[1], sys.argv[2]
+    for name in redact_file(path):
+        print(f'::warning::Removed {name} from {what}.', file=sys.stderr)

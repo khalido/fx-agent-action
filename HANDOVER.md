@@ -27,13 +27,12 @@ Read it, do the work, and **before you finish, leave it true**:
 
 ## In flight
 
-Nothing. v1.1.0 is published (2026-09-16) and `v1` and `v1.1` point at it.
-
-One loose end that is not this repo's code: **`khalido/rd` still passes
-`shell: true`** (twice, one of them with `mode: read`, which is now
-`mode: answer`), so its next run fails on the first step with the migration
-in the error. It has no live session and needs a person. KO's repos stay on
-`@main` for now, on purpose. The other consumers migrated on 2026-09-15.
+Nothing in this repo. One loose end outside it: **`khalido/rd` migrated its
+workflow to 1.1.0's inputs in `fb5a852` but never pushed it** (its main is
+ahead of origin), so origin still passes `shell: true` and every `/fx` there
+fails on the first step. Noted in rd's `BOARD.md`; it needs a push from an rd
+session. KO's repos ride `@main` on purpose; `jaldi` and `sfl-parts` pin
+`@v1`.
 
 ## Not in flight, but parked and worth knowing
 

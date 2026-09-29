@@ -458,7 +458,13 @@ runs:
     # fx's own default model. So the rules and the mode are read back before
     # anything runs. Rule KEYS are not validated by fx — a misspelled one is
     # stored and echoed — so the read-back proves the file parsed, not that the
-    # names are the right ones; `edit` and `shell` are the two measured to bind.
+    # names are the right ones.
+    #
+    # The shell needs TWO keys, measured on 0.0.11: an allow binds under
+    # `bash` and not under `shell` (with `shell` alone every command went to
+    # the auto reviewer, a billed call that can block it), and a deny hides
+    # the tool under `shell` but under `bash` only refuses the call after the
+    # model has tried it. So both keys, always the same action.
     - name: Configure fx
       id: configure
       if: ${{ steps.context.outputs.skip == '' }}
@@ -483,7 +489,7 @@ runs:
         jq -n --arg model "$MODEL" --argjson steps "$steps" --arg effort "$EFFORT" --arg r "$tool_rule" --argjson po "$providers" \
           '{models:{gateway:$model}, max_agent_steps:$steps, max_tool_result_bytes:65536, context:true,
             provider_order:$po, provider_strict:false,
-            permission_mode:"auto", permission:{edit:{"*":$r}, shell:{"*":$r}}}
+            permission_mode:"auto", permission:{edit:{"*":$r}, bash:{"*":$r}, shell:{"*":$r}}}
            + (if $effort != "" then {effort:$effort} else {} end)' > "$HOME/.fx/settings.json"
 
         rules=$(fx permissions --json 2>/dev/null | jq -c '[.rules[] | "\(.permission)=\(.action)"]')
@@ -491,7 +497,7 @@ runs:
         echo "fx configured: $MODE mode; rules $rules; status: $status" >&2
         [ "$status" = "auto $MODEL $steps" ] \
           || { echo "::error::fx did not take the settings written for it (wanted 'auto $MODEL $steps', got '$status'). The settings file may be malformed; nothing ran." >&2; exit 1; }
-        printf '%s' "$rules" | jq -e --arg r "$tool_rule" 'index("edit=\($r)") != null and index("shell=\($r)") != null' >/dev/null \
+        printf '%s' "$rules" | jq -e --arg r "$tool_rule" 'index("edit=\($r)") != null and index("bash=\($r)") != null and index("shell=\($r)") != null' >/dev/null \
           || { echo "::error::$MODE-mode permission rules did not register: $rules" >&2; exit 1; }
         fx doctor --json 2>/dev/null | jq -r '"fx doctor: \(.ok_count) ok, \(.warn_count) warn, \(.fail_count) fail; " + ([.checks[] | select(.status != "ok") | "\(.name): \(.detail)"] | join("; "))' >&2 || true
 
