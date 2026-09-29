@@ -118,7 +118,7 @@ PY
       echo "mode="
       echo "issue_number="
     } >> "$GITHUB_OUTPUT"
-    echo "::warning::No '$first' in this comment outside a quoted line, so there is nothing to answer. If that is a surprise, the job's \`if:\` is a substring test and this is a whole-word match — tighten it to: if: startsWith(github.event.comment.body, '$first') || contains(github.event.comment.body, ' $first')" >&2
+    echo "::warning::No '$first' in this comment outside a quoted line, so there is nothing to answer. The job's \`if:\` is a substring test and this is a whole-word match outside quotes, so a comment that only mentions it lands here; that is expected." >&2
     echo "Nothing to do: no trigger phrase in the comment." >&2
     exit 0
   fi

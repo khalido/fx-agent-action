@@ -11,8 +11,8 @@
 #      generation (`GET /v1/generation?id=`) carries the provider's real charge
 #      (`upstream_inference_cost`) and who served it. Exact, peak pricing
 #      included.
-#   3. Tokens times the catalog's list price, marked estimated, for any
-#      generation the lookup could not answer.
+#   3. Tokens times the catalog's list price, cache reads at theirs, marked
+#      estimated, for any generation the lookup could not answer.
 # Per generation, because one run can be both: a gateway-billed helper (the
 # auto reviewer) next to a BYOK main model. Summing only the ledger's spend
 # once dropped the BYOK half entirely. Never fails the run: nothing to say
@@ -23,7 +23,7 @@ ledger="$HOME/.fx/usage.jsonl"
 tmp="${RUNNER_TEMP:-/tmp}"
 gens="$tmp/fx-cost-generations.jsonl"
 jq -c 'select(.kind == "generation") | .fact | select(.id != null)
-       | {id, model, i: (.input_tokens // 0), o: (.output_tokens // 0), c: (.total_cost // 0)}' \
+       | {id, model, i: (.input_tokens // 0), r: (.cache_read_tokens // 0), o: (.output_tokens // 0), c: (.total_cost // 0)}' \
   "$ledger" 2>/dev/null | jq -sc 'unique_by(.id) | .[]' > "$gens" 2>/dev/null || true
 
 if [ ! -s "$gens" ]; then
@@ -36,7 +36,7 @@ if [ ! -s "$gens" ]; then
 fi
 
 # --- 2. the gateway's record of each zero-cost generation ---------------------
-# A record 404s for a few seconds after the generation, so one retry pass.
+# A record 404s for a while after the generation, so two retry passes.
 # Kept across calls: memory.sh calls this again after a compaction, and only
 # the compaction's generation is new by then.
 records="$tmp/fx-cost-records.jsonl"
@@ -53,9 +53,9 @@ unpriced() {
 }
 missing=$(unpriced || true)
 if [ -n "${AI_GATEWAY_API_KEY:-}" ]; then
-  for attempt in 1 2; do
+  for wait in 0 5 15; do
     [ -n "$missing" ] || break
-    [ "$attempt" = 2 ] && sleep 5
+    sleep "$wait"
     while IFS= read -r id; do
       lookup "$id" >> "$records" || true
     done <<< "$missing"
@@ -78,7 +78,12 @@ summary=$(jq -sc --slurpfile r "$records" --slurpfile cat "$catalog" '
       elif $rec[.id] then {cost: $rec[.id].u, est: false, p: $rec[.id].p}
       elif (.i + .o) == 0 then {cost: 0, est: false}
       elif $price[.model] then
-        {cost: (.i * ($price[.model].input // "0" | tonumber) + .o * ($price[.model].output // "0" | tonumber)), est: true}
+        # Cached input at its own price when the catalog has one: most of an
+        # agent run input is cache reads, and full price overstates it tenfold.
+        ($price[.model]) as $p
+        | {cost: ((.i - .r) * ($p.input // "0" | tonumber)
+                  + .r * ($p.input_cache_read // $p.input // "0" | tonumber)
+                  + .o * ($p.output // "0" | tonumber)), est: true}
       else {cost: 0, est: true}
       end)
   | {cost: (map(.cost) | add), est: any(.[]; .est), providers: ([.[].p // empty | select(. != "")] | unique | join(",")),

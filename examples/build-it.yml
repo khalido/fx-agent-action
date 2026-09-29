@@ -36,7 +36,7 @@ jobs:
     # not be a bot. That matters more here than anywhere else, because this
     # run edits code with a token that can push.
     if: >-
-      (startsWith(github.event.comment.body, '/fx') || contains(github.event.comment.body, ' /fx')) &&
+      contains(github.event.comment.body, '/fx') &&
       github.event.comment.user.type != 'Bot'
     runs-on: ubuntu-latest
     timeout-minutes: 20
