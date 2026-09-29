@@ -8,6 +8,8 @@ break and how a release is cut.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-29
+
 Checked against fx 0.0.11.
 
 ### Added
@@ -45,9 +47,6 @@ Checked against fx 0.0.11.
   reviewer, a billed call each that could also block it. Both keys are
   written now: `bash` for the allow, `shell` so read mode still hides the
   tool rather than refusing it after a wasted step.
-- `MEMORY.md` is scrubbed for secrets before every push and after every
-  fetch, like the answer and the session (#15). It was the one published
-  path that skipped `redact.py`.
 - Two runs saving memory at once no longer lose one run's lines (#10). The
   save catches up with the branch and merges before it compacts, the merge
   keeps both sides, and compaction keeps the file's order instead of
@@ -55,7 +54,24 @@ Checked against fx 0.0.11.
 - The footer's cost covers the whole run when it mixes billing: a
   gateway-billed helper next to a BYOK model reported only the helper,
   about a tenth of the real figure. Each generation is priced on its own
-  now. Part of #11; the cache split is still to come.
+  now. Part of #11; the cache split is still to come. When the gateway
+  cannot say, the `≈` estimate prices cache reads at their own rate, which
+  brought it from about 5× the real figure to under 2×.
+
+- The pull request push no longer runs the repository's own git hooks. A
+  pre-push hook wired through `core.hooksPath` ran the repo's full check under
+  the runner's Node and refused the push. The agent runs the checks before it
+  asks for a pull request, and CI runs them again on it.
+- When the agent asked for a pull request and none opened, the comment says
+  so above the answer. It used to post the agent's "shipped as a draft PR"
+  with nothing shipped.
+
+### Security
+
+- `MEMORY.md` is scrubbed for secrets before every push and after every
+  fetch, like the answer and the session (#15). It was the one published
+  path that skipped `redact.py`. Nothing was found on this repo's own
+  memory branch, all 23 commits scanned.
 
 ## [1.1.0] - 2026-09-16
 
@@ -282,6 +298,7 @@ what changed.
   [`docs/agent-memory.md`](docs/agent-memory.md) as the surveys behind the
   choices.
 
-[Unreleased]: https://github.com/khalido/fx-agent-action/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/khalido/fx-agent-action/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/khalido/fx-agent-action/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/khalido/fx-agent-action/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/khalido/fx-agent-action/releases/tag/v1.0.0
