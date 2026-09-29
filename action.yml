@@ -709,6 +709,7 @@ runs:
         OUT_TOKENS: ${{ steps.run.outputs.output_tokens }}
         PR_URL: ${{ steps.pr.outputs.pr_url }}
         PR_UNPUSHED: ${{ steps.pr.outputs.pr_unpushed }}
+        PR_OUTCOME: ${{ steps.pr.outcome }}
         RUN_FAILED: ${{ steps.run.outcome }}
         MEMORY: ${{ steps.memory_save.outputs.memory }}
         SHA: ${{ steps.context.outputs.sha }}

@@ -93,6 +93,13 @@ footer=$(printf '%s' "$runs" | jq -r '
 {
   printf '%s\n' "$MARKER"
   printf '<!-- fx-runs %s -->\n' "$runs"
+  # Above the answer, because the answer was written before the push and
+  # already says the change shipped.
+  if [ "${PR_OUTCOME:-}" = "failure" ]; then
+    printf '**No pull request was opened.** The agent asked for one, but pushing the branch or opening it failed; the [log](%s) says why, and the change below exists nowhere.\n\n' "$run_url"
+  elif [ "${PR_UNPUSHED:-}" = "true" ]; then
+    printf '**No pull request was opened.** The agent asked for one, but this job cannot push a branch, so the change below was not kept. Give the job `contents: write` if it should be able to.\n\n'
+  fi
   if [ -n "${RESPONSE_PATH:-}" ] && [ -s "${RESPONSE_PATH:-}" ]; then
     if [ "$(wc -c < "$RESPONSE_PATH")" -gt "$LIMIT" ]; then
       head -c "$LIMIT" "$RESPONSE_PATH"
@@ -104,7 +111,6 @@ footer=$(printf '%s' "$runs" | jq -r '
     printf 'The run failed before there was an answer. The [log](%s) says why.\n' "$run_url"
   fi
   [ -n "${PR_URL:-}" ] && printf '\n\nOpened %s — nobody has reviewed it yet.\n' "$PR_URL"
-  [ "${PR_UNPUSHED:-}" = "true" ] && printf '\n\n*The agent asked for a pull request, but this job cannot push a branch. Its edits were not kept; give the job `contents: write` if it should be able to.*\n'
   [ "${RUN_FAILED:-success}" = "failure" ] && printf '\n\n*The run itself failed; the answer above may be partial.*\n'
   printf '\n\n---\n%s\n' "$footer"
 } > "$body"

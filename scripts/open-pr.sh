@@ -92,6 +92,13 @@ title=$(printf '%s' "$title" | sed -E 's/^[-[:space:]]+//')
 
 branch="${BRANCH_PREFIX:-fx}/${ISSUE_NUMBER:-run}-$(date +%s)"
 
+# No git hooks, for every git call below. A repo's hooks are for its laptops:
+# one wired through `core.hooksPath` by an npm `prepare` script ran its
+# pre-push `npm run ci` under the runner's Node and refused the push (seen on
+# sfl-parts, 2026-09-29). The agent ran the repo's checks before it asked for
+# this pull request; CI on the pull request runs them again.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null
+
 # The commit identity is the bot's, always. An App token changes who COMMENTS;
 # GitHub attributes a commit by the email inside it.
 git config user.name "github-actions[bot]"
