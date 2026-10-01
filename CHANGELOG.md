@@ -8,9 +8,9 @@ break and how a release is cut.
 
 ## [Unreleased]
 
-## [1.2.0] - 2026-09-29
+## [1.2.0] - 2026-10-01
 
-Checked against fx 0.0.11.
+Checked against fx 0.0.11 and 0.0.12.
 
 ### Added
 
@@ -34,6 +34,9 @@ Checked against fx 0.0.11.
   `/fx` at the start of any line, not only the first, and on a private repo
   leaves the author check to the action: `author_association` skipped an org
   admin whose membership is private. Re-copy it, or make the same two edits.
+- `/fx` on a closed issue or pull request gets a line or two, unless the
+  comment asks for more. A closed thread usually wants "shipped in abc123",
+  not a fresh investigation.
 - The memory prompt keeps issue status and line numbers out of `MEMORY.md`:
   the first goes stale when the issue closes, the second with every commit.
 
