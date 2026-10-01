@@ -432,7 +432,7 @@ Every consumer is a repo KO can reach, which is what makes this safe.
 token for a named bot, and for CI to run on what it pushes. No hosted service,
 ever — that is the line between this and the opencode model.
 
-## fx facts checked against 0.0.11
+## fx facts checked against 0.0.12
 
 Verified against the binary, so nobody re-checks them from memory. Recheck
 when fx's version in a footer moves: install the new release into a scratch
@@ -446,6 +446,10 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
   Measured against a dead endpoint: "Connection lost · waiting for
   connection" every 5s, no JSON, no exit. Hence `timeout` in `run-fx.sh` and
   `memory.sh`. A 401 exits in seconds.
+- **Nothing the agent starts keeps `fx ask` alive** (0.0.12, where detached
+  processes outlive a shell call). Asked to `nohup … &`, the model refused;
+  asked to leave `sleep 200` running as a shell session, `fx ask` answered
+  in 5s and the process was gone.
 - **A failed request puts its error in `output`**, not `error`, which stays
   null: `{"output":"AI_GATEWAY_API_KEY authentication failed · HTTP 401",
   "final_output":"","exit_code":1,"steps":0,"auth_failure":{...}}`. So
@@ -498,7 +502,7 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
 
 **Sessions and spend**
 
-- **Session JSON is `execution.schema_version` 3**, per turn, on 0.0.11.
+- **Session JSON is `execution.schema_version` 3**, per turn, on 0.0.12.
   `session-html.py` depends on `history[].user.text`, `history[].assistant`,
   `execution.tool_steps[].{assistant,tool_calls,tool_results}`,
   `tool_calls[].{id,name,arguments_json,provider_result}` and

@@ -343,6 +343,19 @@ you found nothing useful, say so in one line. If you shipped a change, the
 comment links to the pull request: say in a sentence or two what you changed
 and what you left alone.
 TXT
+  # A closed thread usually wants "yes, shipped in abc123", not a fresh
+  # investigation. From the payload; a manual dispatch has none, so ask.
+  state="$(payload '.issue.state // .pull_request.state')"
+  if [ -z "$state" ] && [ -n "$issue" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
+    state=$(gh issue view "$issue" --repo "$GITHUB_REPOSITORY" --json state --jq .state 2>/dev/null || true)
+  fi
+  if [ "$(printf '%s' "$state" | tr '[:upper:]' '[:lower:]')" = closed ]; then
+    cat <<'TXT'
+
+This thread is closed. Answer in a line or two unless the request asks for
+more: what was done and where, or that it was not.
+TXT
+  fi
   # Only with a commit and a repository to build the link from; a local run
   # of this script has neither, and a half-built URL is worse than none.
   if [ -n "$sha" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
