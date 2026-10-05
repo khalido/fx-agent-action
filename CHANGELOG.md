@@ -8,6 +8,23 @@ break and how a release is cut.
 
 ## [Unreleased]
 
+Checked against fx 0.0.13.
+
+### Changed
+
+- The base prompt asks for the active voice, one point to a sentence, and a
+  numbered list for steps someone will follow.
+- When an answer is a sequence, a flow between parts or a set of states, the
+  agent may draw a small mermaid diagram, which GitHub renders, instead of
+  describing it. Only then, never as decoration.
+
+### Fixed
+
+- A correction to 1.2.0's notes: writing the shell rule under `bash` stopped
+  the auto review for plain commands, not for every command. fx still
+  reviews a pipe or an `&&` chain under an allow rule, one cheap call each.
+  The action cannot change that; AGENTS.md has the details.
+
 ## [1.2.0] - 2026-10-01
 
 Checked against fx 0.0.11 and 0.0.12.
