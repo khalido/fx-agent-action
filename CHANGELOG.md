@@ -8,6 +8,8 @@ break and how a release is cut.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-05
+
 Checked against fx 0.0.13.
 
 ### Changed
@@ -318,7 +320,8 @@ what changed.
   [`docs/agent-memory.md`](docs/agent-memory.md) as the surveys behind the
   choices.
 
-[Unreleased]: https://github.com/khalido/fx-agent-action/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/khalido/fx-agent-action/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/khalido/fx-agent-action/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/khalido/fx-agent-action/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/khalido/fx-agent-action/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/khalido/fx-agent-action/releases/tag/v1.0.0
