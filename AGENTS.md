@@ -432,7 +432,7 @@ Every consumer is a repo KO can reach, which is what makes this safe.
 token for a named bot, and for CI to run on what it pushes. No hosted service,
 ever — that is the line between this and the opencode model.
 
-## fx facts checked against 0.0.12
+## fx facts checked against 0.0.13
 
 Verified against the binary, so nobody re-checks them from memory. Recheck
 when fx's version in a footer moves: install the new release into a scratch
@@ -449,7 +449,11 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
 - **Nothing the agent starts keeps `fx ask` alive** (0.0.12, where detached
   processes outlive a shell call). Asked to `nohup … &`, the model refused;
   asked to leave `sleep 200` running as a shell session, `fx ask` answered
-  in 5s and the process was gone.
+  in 5s and the process was gone. 0.0.13 makes it a rule: terminals the shell
+  tool started stop when fx exits.
+- **Compaction starts at 80% of the window** (`auto_compact_percent`, 10–80,
+  a personal setting `.fx.json` cannot set). Left at the default: a run is
+  one prompt, and fx compacts and retries once on a context overflow.
 - **A failed request puts its error in `output`**, not `error`, which stays
   null: `{"output":"AI_GATEWAY_API_KEY authentication failed · HTTP 401",
   "final_output":"","exit_code":1,"steps":0,"auth_failure":{...}}`. So
@@ -477,6 +481,12 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
   only refuses the call once the model has tried it. So Configure writes
   both, always the same action. This was wrong here until 2026-09-29; the
   agent's own memory caught it on 0.0.9 and nobody acted on it.
+- **The allow covers plain commands only.** A pipe or `&&` chain
+  (`ls scripts | wc -l`) is reviewed under `bash: {"*": "allow"}` all the
+  same, one call each, on 0.0.11, 0.0.12 and 0.0.13; fx's docs do not say
+  so. About $0.0002 a call, so the risk is a caution blocking a routine
+  `grep | head`, not the money. `full-access` is not the fix: read mode rides
+  on the checks it turns off.
 - **Rule keys are not validated**, and an unparseable file is dropped whole.
   See the decisions above; it is why Configure reads back.
 - **`fx doctor --json` runs no model call** and names a checkout's `.fx.json`
@@ -502,7 +512,9 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
 
 **Sessions and spend**
 
-- **Session JSON is `execution.schema_version` 3**, per turn, on 0.0.12.
+- **Session JSON is `execution.schema_version` 3**, per turn, on 0.0.13.
+  0.0.13 adds `fx ask --sessions-v2`, opt-in; the action stays on the default
+  until v2 is fx's default, so `session-html.py` migrates once.
   `session-html.py` depends on `history[].user.text`, `history[].assistant`,
   `execution.tool_steps[].{assistant,tool_calls,tool_results}`,
   `tool_calls[].{id,name,arguments_json,provider_result}` and
