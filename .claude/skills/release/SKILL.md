@@ -66,6 +66,24 @@ Read the commit bodies, not the diffs. `CHANGELOG.md`'s `## [Unreleased]`
 should already say all of this, because entries are written as changes land;
 add what is missing, drop nothing silently.
 
+### 1b. What changed in fx
+
+The action installs fx's latest release on every run, so a new fx version
+reaches every consumer whether or not this repo releases. Before tagging,
+check that the action is checked against the current one:
+
+```bash
+gh release list --repo vercel-labs/fx --limit 5
+grep -m1 '^## fx facts checked against' AGENTS.md
+```
+
+If fx is ahead of that heading, read the release notes for each version
+since (`gh release view <tag> --repo vercel-labs/fx`) and recheck what the
+action depends on: `fx ask` flags, the session schema `session-html.py`
+reads, the ledger fields `cost.sh` reads, the rule keys and the read-back.
+Update the AGENTS.md facts and say "Checked against fx X" in the changelog
+section. A change there is part of this release, not the next one.
+
 ### 2. Decide the bump, in one line
 
 Name the change that forces it. "MINOR: `allowed_bots` is new and defaults to
