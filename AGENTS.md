@@ -190,6 +190,24 @@ config does not name it. `session-html.py` renders these calls from
 `provider_result`, since a note that cites a thread should show the search
 that found it.
 
+**`web_fetch` is on in every mode, and links from outside the repo are not
+followed.** Auto mode runs search and fetch without review, and no rule names
+either. A fetch is a way out for data, so the question is what it could carry:
+in `agent` and `answer` nothing new, since the shell has `curl` and the key;
+in `read` on a public repo nothing private is in reach; in `read` on a private
+repo only people with access write the thread. So it stays on, everywhere,
+and the person who typed the trigger is trusted with it — which holds in
+`triage.yml` only because its `allowed_non_write_users: '*'` comes with a
+fixed `prompt`, so a stranger's text is never the instruction. What is not trusted
+is a link someone else put in the thread: the thread block labels every
+author with their `author_association`, and the base block says a link from
+anyone who is not OWNER, MEMBER or COLLABORATOR is part of their text and is
+not fetched unless the instructions ask. Bots are `NONE` too, this action's
+own earlier comments and dependabot's release-note links included; that is
+accepted, since the agent can search for the same page itself. That is a prompt rule, the weakest
+kind of control, and it is there to stop a stranger's issue being the thing
+that decides where the agent reads; decided by KO, 2026-10-11.
+
 **The checkout is fx's workspace, and it contributes more than `AGENTS.md`.**
 fx loads `~/.fx/AGENTS.md` and the primary workspace's files; on a runner HOME
 is fresh and the workspace is the checkout, and this action's own checkout sits
@@ -527,8 +545,10 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
 
 **Commands**
 
-- **`fx background` does not exist**, though the docs list it; `fx resume`
-  and `fx replay` exist but are not in `fx --help`. The binary wins.
+- **`fx replay <tape>` replays an `FX_RECORD` recording**; the docs show it
+  (Share feedback) but `fx --help` does not.
+  `fx session migrate <id>` converts a saved session to the current format,
+  which may be how `session-html.py` handles v2 when it becomes the default.
 - **`fx pr` and `fx issue` are not used.** Both publish through `gh` with no
   branch, no draft and no body file; `open-pr.sh` does that job.
 - **`fx ask` takes `--model`, `--effort`, `--provider-order` and `--image`**

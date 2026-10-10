@@ -317,7 +317,9 @@ Things that fail on the first day:
 - **Read mode can reach the web.** Search and fetch are on, so an injected
   thread that steers the agent could read a file and send it out in a URL.
   The write-access check is the control; only people who could already read
-  the repo can start a run.
+  the repo can start a run. The thread labels each author's relation to the
+  repo, and the agent is told not to fetch links from anyone outside it
+  unless the instruction asks.
 - **The agent reads your `AGENTS.md` and sees every skill in the repo**, as
   above, and on a PR that is the PR's copy. The pr-review example skips forks
   for this reason.

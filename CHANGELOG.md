@@ -8,6 +8,13 @@ break and how a release is cut.
 
 ## [Unreleased]
 
+### Changed
+
+- The thread shows each author's relation to the repo (OWNER, MEMBER,
+  CONTRIBUTOR, NONE…), and the agent is told not to fetch links posted by
+  anyone outside the repo unless the instruction asks. Web search and fetch
+  stay on in every mode.
+
 ## [1.3.0] - 2026-10-05
 
 Checked against fx 0.0.13.
