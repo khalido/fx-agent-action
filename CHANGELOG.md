@@ -10,6 +10,10 @@ break and how a release is cut.
 
 ### Changed
 
+- fx is downloaded on every run instead of cached. The cache never filled on
+  issue or comment runs, each of which logged a "Failed to save" warning, and
+  the download takes half a second (#26).
+
 - The thread shows each author's relation to the repo (OWNER, MEMBER,
   CONTRIBUTOR, NONE…), and the agent is told not to fetch links posted by
   anyone outside the repo unless the instruction asks. Web search and fetch

@@ -11,7 +11,7 @@ Working on the action itself is a different job; that is [`AGENTS.md`](../AGENTS
    every event. A no fails the run before anything else happens.
 2. **Reacts** with 👀 on the comment, or on the issue when an issue opening or
    edit is the trigger. Taken off at the end.
-3. **Installs fx**, the latest release, cached by version.
+3. **Installs fx**, the latest release.
 4. **Builds the prompt**: the base block, the instruction, then the thread as
    evidence with hidden markup stripped.
 5. **Configures fx** from one settings file, then reads the settings back and
@@ -353,6 +353,6 @@ For one repo, maybe not:
 
 [`examples/minimal-no-action.yml`](../examples/minimal-no-action.yml) is that,
 finished. The action adds what you would otherwise paste into every repo: the
-actor checks, one comment instead of a pile, a cached binary, the draft pull
+actor checks, one comment instead of a pile, the draft pull
 request from what the agent changed, the thread and diff with hidden markup
 stripped, the built-in note, and the session to read when it goes wrong.

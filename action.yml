@@ -332,47 +332,15 @@ runs:
 
     # fx ships weekly and there is no version input on purpose: pinning an
     # agent to an old release ages badly, and the whole value here is that fx
-    # keeps getting better. The tag is resolved only to key the cache.
-    - name: Resolve the fx version
-      id: version
-      shell: bash
-      run: |
-        set -euo pipefail
-        # The same file setup.sh reads, so the cache key and the binary it
-        # installs name the same release even if one lands mid-run.
-        tag=$(curl -fsSL https://releases.fx.sh/latest.txt 2>/dev/null | tr -d '[:space:]' || true)
-        case "$tag" in v[0-9]*) ;; *) tag='' ;; esac
-        # actions/cache never overwrites an existing key, so a FIXED fallback
-        # would pin whatever binary happened to be cached the day the API was
-        # rate-limited, forever. A dated one self-heals the next day.
-        echo "tag=${tag:-unresolved-$(date -u +%Y-%m-%d)}" >> "$GITHUB_OUTPUT"
-
-    # fx is a single static binary, so caching it turns a download into a
-    # restore. Keyed on the resolved tag, so a new release busts it.
-    - name: Restore fx from the cache
-      id: cache
-      uses: actions/cache@v6
-      with:
-        path: ~/.local/bin/fx
-        key: fx-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.tag }}
-
-    # The resolved tag is passed through when there is one, so the installed
-    # binary is the one the cache key names. Without a tag, latest.
+    # keeps getting better. No cache either: the download takes half a second,
+    # and issue and comment runs cannot save a cache anyway (#26).
     - name: Install fx
-      if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      env:
-        TAG: ${{ steps.version.outputs.tag }}
-      run: |
-        set -euo pipefail
-        case "$TAG" in
-          v[0-9]*) curl -fsSL https://fx.sh/setup.sh | bash -s -- "$TAG" ;;
-          *)       curl -fsSL https://fx.sh/setup.sh | bash ;;
-        esac
+      run: curl -fsSL https://fx.sh/setup.sh | bash
 
     # FX_AUTO_UPGRADE=0: fx checks for a newer release on start and can
-    # install it in place. In CI that is a second download of a binary we just
-    # restored from cache, and a run that does not match the version it logged.
+    # install it in place. In CI that is a second download, and a run that
+    # does not match the version it logged.
     - name: Put fx on PATH
       shell: bash
       run: |

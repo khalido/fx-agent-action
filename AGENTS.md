@@ -172,12 +172,13 @@ value. `models` is keyed by provider; the gateway's is `models.gateway`. There
 is one model per run: `pr_model` went when the run stopped knowing in advance
 whether it would ship.
 
-**No version pin for fx.** It ships weekly and pinning an agent ages badly. The
-release tag is resolved only to key the cache — from `releases.fx.sh/latest.txt`,
-the same file fx's own installer reads, so the cache key and the binary name
-the same release — and a failed resolve falls back to a *dated* key: `actions/cache` never overwrites an existing key, so a fixed
-fallback would pin a stale binary forever. `FX_AUTO_UPGRADE=0` is set for the
-job so the restored binary does not replace itself mid-run.
+**No version pin and no cache for fx.** It ships weekly and pinning an agent
+ages badly, so every run installs the latest with fx's own `setup.sh`. It was
+cached by release tag until 2026-10-13, and the cache never filled on a real
+run: `issues` and `issue_comment` runs get read-only cache access, so every
+save failed with a warning, and the download it would skip takes half a
+second (#26). `FX_AUTO_UPGRADE=0` is set for the job so the binary does not
+replace itself mid-run.
 
 **Web search is provider-native, and restrictions travel as parameters.** On
 the gateway the model calls `exa_search` and Exa runs it server-side; fx
@@ -564,7 +565,7 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
 
 Not yet. Everything we use it for has a shell equivalent already on the runner:
 `$GITHUB_OUTPUT` for `core.setOutput`, `::error::`/`::warning::` for
-`setFailed`/`warning`, `gh api` for Octokit, `actions/cache` as a step.
+`setFailed`/`warning`, `gh api` for Octokit.
 
 The moment to switch is real API work shell makes awkward: review comments
 anchored to diff lines, pagination with retries, partial failure across several
