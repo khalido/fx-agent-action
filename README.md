@@ -53,16 +53,16 @@ jobs:
 ```
 
 ```bash
-vercel ai-gateway api-keys create --name github-actions --limit 10 --refresh-period monthly
+vercel ai-gateway api-keys create --name fx-REPO --limit 3 --refresh-period weekly --include-byok
 gh secret set AI_GATEWAY_API_KEY
 gh api -X PUT repos/OWNER/REPO/actions/permissions/workflow \
   -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
 ```
 
-That is the setup: an [AI Gateway](https://vercel.com/ai-gateway) key with
-its own budget, made with the [Vercel CLI](https://vercel.com/docs/cli), the
-secret, and the switch GitHub leaves off that lets a workflow open a pull
-request. `gh secret set` prompts for the key, which keeps it out of your shell
+That is the setup. The [Vercel CLI](https://vercel.com/docs/cli) makes an
+[AI Gateway](https://vercel.com/ai-gateway) key for this repo alone, with a
+$3 budget that resets every week. Then the secret, and the switch GitHub
+leaves off that lets a workflow open a pull request. `gh secret set` prompts for the key, which keeps it out of your shell
 history; a script or an agent doing this unattended passes `--body` or pipes it
 in. The same file with comments is [`examples/fx.yml`](examples/fx.yml);
 this repo runs it on itself. One job, one agent: a new issue gets a note,

@@ -321,7 +321,8 @@ says which provider served the run, which is the number to watch given how much 
 providers differ; `provider_order` picks among them. The list-price
 estimate from tokens, marked `≈`, covers a generation whose lookup fails; a
 record 404s for a few seconds after the generation, so there is one retry.
-The gateway budget no longer caps a BYOK model; the provider's account does.
+A key's budget caps a BYOK model only when the key was made with
+`--include-byok`, which the README's setup line passes.
 
 **Cost and tokens come from fx's ledger, not from `fx ask`.** `ask` reports
 tokens and no price, and only the main agent's tokens: subagents, the helper

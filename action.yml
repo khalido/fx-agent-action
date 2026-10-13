@@ -197,7 +197,7 @@ inputs:
     description: >-
       Fail the step when the run costs more than this many US dollars. A
       tripwire, not a brake. The real brake is a budget on the AI Gateway key
-      itself (`vercel ai-gateway api-keys create --limit 10`), which the
+      itself (`vercel ai-gateway api-keys create --limit 3 --refresh-period weekly`), which the
       gateway enforces with a 402. 0 disables it. A run that trips it after
       asking for a pull request still gets one: the work is done and throwing
       it away helps nobody.

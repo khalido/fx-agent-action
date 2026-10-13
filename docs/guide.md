@@ -232,12 +232,17 @@ The App is yours. I don't want the ability to mint tokens into your repo.
 ## Cost
 
 Everything bills to your [AI Gateway](https://vercel.com/ai-gateway) key,
-web search included. Give the key its own budget when you create it; the
-gateway enforces that, and `max_cost` only notices after the fact.
+web search included. Give each repo its own key with a budget that resets
+weekly; the gateway enforces it, and `max_cost` only notices after the fact.
 
 ```bash
-vercel ai-gateway api-keys create --name github-actions --limit 10 --refresh-period monthly
+vercel ai-gateway api-keys create --name fx-REPO --limit 3 --refresh-period weekly --include-byok
 ```
+
+Runs on this repo cost under 5¢ each on `deepseek/deepseek-v4.1-flash`, so
+$3 covers 60 or more a week. A week is short enough that a runaway loop or a
+leaked key costs one week's budget. `--include-byok` counts calls on your own
+provider keys against it too. A key per repo shows which repo spent what.
 
 The footer on every comment has the model, tokens in and out, the cost in
 cents and the seconds, from fx's own ledger. That ledger is per machine and
@@ -247,8 +252,9 @@ you. On a self-hosted runner with a persistent HOME the figures and
 stacks its earlier runs underneath and a total. The script does the adding.
 
 If you add your own provider key to the gateway (BYOK), the gateway bills
-nothing for those calls, so your gateway budget no longer caps that model's
-spend; the provider's own account does. fx's ledger then records zero, so
+nothing for those calls, so a key made without `--include-byok` no longer
+caps that model's spend; the provider's own account does. fx's ledger then
+records zero, so
 the action asks the gateway for its record of each generation in the run and
 sums the provider's real charge instead, peak pricing included, and the
 footer names the provider that served the run (`via deepseek`). Only if

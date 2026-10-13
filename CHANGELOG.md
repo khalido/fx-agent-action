@@ -14,6 +14,15 @@ break and how a release is cut.
   CONTRIBUTOR, NONE…), and the agent is told not to fetch links posted by
   anyone outside the repo unless the instruction asks. Web search and fetch
   stay on in every mode.
+- Tighter writing rules in the base prompt: one term per thing, steps with
+  one action each and the condition first, no announcing labels ("Summary:"),
+  no retelling the issue to the people who wrote it, and a recommendation
+  first when someone has to decide. On two issues here, answers came out
+  10–18% shorter.
+- The setup line makes a key per repo with a $3 budget that resets weekly and
+  counts BYOK spend. A key made before this does not cap BYOK spend, and the
+  CLI cannot change that on an existing key: make a new one and reset the
+  `AI_GATEWAY_API_KEY` secret.
 
 ## [1.3.0] - 2026-10-05
 
