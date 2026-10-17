@@ -80,7 +80,7 @@ grep -m1 '^## fx facts checked against' AGENTS.md
 If fx is ahead of that heading, read the release notes for each version
 since (`gh release view <tag> --repo vercel-labs/fx`) and recheck what the
 action depends on: `fx ask` flags, the session schema `session-html.py`
-reads, the ledger fields `cost.sh` reads, the rule keys and the read-back.
+reads, the `fx ask --json` fields `cost.sh` reads, the rule keys and the read-back.
 Update the AGENTS.md facts and say "Checked against fx X" in the changelog
 section. A change there is part of this release, not the next one.
 

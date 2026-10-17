@@ -244,22 +244,19 @@ $3 covers 60 or more a week. A week is short enough that a runaway loop or a
 leaked key costs one week's budget. `--include-byok` counts calls on your own
 provider keys against it too. A key per repo shows which repo spent what.
 
-The footer on every comment has the model, tokens in and out, the cost in
-cents and the seconds, from fx's own ledger. That ledger is per machine and
-the numbers assume a fresh HOME every job, which GitHub-hosted runners give
-you. On a self-hosted runner with a persistent HOME the figures and
-`max_cost` become cumulative; give each job its own HOME there. A comment that gets rewritten
-stacks its earlier runs underneath and a total. The script does the adding.
+The footer on every comment has the model, the provider that served it
+(`via deepseek`), tokens in and out, the cost in cents and the seconds. The
+cost is a ceiling, marked `≤`: fx reports the run's tokens but not how many
+were cache reads, so the action prices all input at the full list rate. On
+`deepseek/deepseek-v4.1-flash`, where most input is cached, that is about 9×
+the real figure, and `max_cost` compares against it. The gateway key's budget
+is the real number. The tokens are the main agent's; the auto reviewer and
+web search are not in them. A comment that gets rewritten stacks its earlier
+runs underneath and a total. The script does the adding.
 
 If you add your own provider key to the gateway (BYOK), the gateway bills
 nothing for those calls, so a key made without `--include-byok` no longer
-caps that model's spend; the provider's own account does. fx's ledger then
-records zero, so
-the action asks the gateway for its record of each generation in the run and
-sums the provider's real charge instead, peak pricing included, and the
-footer names the provider that served the run (`via deepseek`). Only if
-those lookups fail does it fall back to a list-price estimate from the
-tokens, marked `≈`.
+caps that model's spend; the provider's own account does.
 
 Speed varies with who serves the model. The gateway routes a request for
 `deepseek/deepseek-v4.1-flash` to any of a dozen or more providers at

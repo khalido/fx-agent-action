@@ -10,6 +10,16 @@ break and how a release is cut.
 
 ### Changed
 
+- The footer's cost is now a ceiling, marked `≤`, and `max_cost` compares
+  against it. fx 0.0.14 stopped keeping the per-generation ledger the exact
+  figure came from, so the action prices `fx ask`'s tokens at list price with
+  no cache discount: about 9× the real cost on the default model. Without
+  this, the footer showed no cost and 0 tokens on 0.0.14. Checked against
+  fx 0.0.14.
+- `max_cost` defaults to 5 instead of 1, since it now compares against that
+  ceiling: a 1M-token run on `anthropic/claude-sonnet-5` prices at about $3.
+- The Configure step also reads back `effort`, which `fx status` reports
+  since 0.0.14.
 - fx is downloaded on every run instead of cached. The cache never filled on
   issue or comment runs, each of which logged a "Failed to save" warning, and
   the download takes half a second (#26).

@@ -131,7 +131,8 @@ save)
     # A time limit, because fx waits indefinitely for an endpoint it cannot
     # reach; `timeout` is GNU, so a runner without it goes without.
     limit=(); command -v timeout >/dev/null && limit=(timeout -k 30 300)
-    if compacted=$(env -u GH_TOKEN ${limit[@]+"${limit[@]}"} fx ask --json --no-save --quiet -- "$(cat "$prompt")" 2>/dev/null | jq -r '.final_output // empty') \
+    env -u GH_TOKEN ${limit[@]+"${limit[@]}"} fx ask --json --no-save --quiet -- "$(cat "$prompt")" > "$state/compact.json" 2>/dev/null || true
+    if compacted=$(jq -r '.final_output // empty' "$state/compact.json" 2>/dev/null) \
        && [ -n "$compacted" ] && [ "$(printf '%s\n' "$compacted" | wc -l | tr -d ' ')" -le "$((cap + 5))" ]; then
       printf '%s\n' "$compacted" > "$file"
       status=compacted
@@ -140,7 +141,8 @@ save)
       echo "::warning::memory: compaction did not produce a usable file; keeping the agent's version at $lines lines." >&2
     fi
     # The compaction was a billed request; the footer should carry it.
-    bash "$(dirname "$0")/cost.sh" >> "${GITHUB_OUTPUT:-/dev/null}" 2>/dev/null || true
+    bash "$(dirname "$0")/cost.sh" "${RUNNER_TEMP:-/tmp}/fx-result.json" "$state/compact.json" \
+      >> "${GITHUB_OUTPUT:-/dev/null}" 2>/dev/null || true
   fi
 
   sha=$(cat "$state/sha" 2>/dev/null || true)

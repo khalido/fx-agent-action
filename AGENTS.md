@@ -15,7 +15,7 @@ not your memory of them:** <https://fx.sh/llms.txt> is the index,
 docs and the installed binary disagree, `fx <command> --help` wins. The pages
 this action leans on: `fx ask` (the JSON shape), Permissions (rules and
 modes), Configuration (`~/.fx/settings.json` keys and the `FX_*` variables),
-Usage and costs (`fx usage --json`), CLI (`fx session`).
+CLI (`fx session`).
 
 ## Shape, and why
 
@@ -37,7 +37,7 @@ before a change ships, and `gh`, `jq` and `python3` are already on every runner.
 | `scripts/redact.py` | the secret scrubber, shared by the answer, the PR text, the session and the memory file |
 | `scripts/post-comment.sh` | upsert one comment, found by a hidden marker |
 | `scripts/open-pr.sh` | when the agent wrote `.agent-pr.md` and the tree changed: branch, commit, push, open the draft PR |
-| `scripts/cost.sh` | the run's dollars, priced per generation: fx's ledger, the gateway's record for a BYOK one, list price as a fallback; used after `fx ask` and a memory compaction |
+| `scripts/cost.sh` | the run's dollars at most: `fx ask`'s tokens at list price, for the main run and a memory compaction |
 | `scripts/memory.sh` | `fetch` the memory file from its branch before the run, `save` it after, compacting when over the cap |
 
 If a change wants another file, ask whether it belongs in the prompt instead.
@@ -307,32 +307,30 @@ churn, an edit-in-place, delete-stale, earn-its-place contract produced
 durable entries. `open-pr.sh` filters `.agent-memory/` out of the PR
 pathspec. The survey behind the choice of store is `docs/agent-memory.md`.
 
-**Under BYOK the ledger says zero, so `cost.sh` asks the gateway, per
-generation.** KO added
-a DeepSeek key to the gateway (2026-09-11); the gateway then answers with
-`cost: 0, is_byok: true` and fx's ledger records no spend. But
-`~/.fx/usage.jsonl` keeps every generation id, and
-`GET /v1/generation?id=<id>` on the gateway returns that generation's
-`upstream_inference_cost`, `provider_name`, `latency` and token counts. So
-each generation is priced on its own: the ledger's `total_cost` when it is
-above zero, the gateway's record when it is zero. One run is often both — the
-auto reviewer is gateway-billed next to a BYOK main model — and summing the
-ledger's spend alone once reported a tenth of the real figure. The footer
-says which provider served the run, which is the number to watch given how much the DeepSeek
-providers differ; `provider_order` picks among them. The list-price
-estimate from tokens, marked `≈`, covers a generation whose lookup fails; a
-record 404s for a few seconds after the generation, so there is one retry.
-A key's budget caps a BYOK model only when the key was made with
-`--include-byok`, which the README's setup line passes.
-
-**Cost and tokens come from fx's ledger, not from `fx ask`.** `ask` reports
-tokens and no price, and only the main agent's tokens: subagents, the helper
-models (`auto` review, the vision fallback) and Exa are excluded. The ledger
-has everything, and the runner's HOME is new every job, so the only spend in
-it is this run's. Tokens come from `fx usage --json` totals; dollars from
-`~/.fx/usage.jsonl`, one line per generation, priced as above. A memory
-compaction is a second billed request, and `memory.sh` reads the ledger
-again after it so the footer and the `cost` output cover both.
+**The footer's dollars are a ceiling, from `fx ask`'s tokens at list
+price, and a ballpark is all that is wanted.** Until 0.0.13 fx kept a
+per-generation ledger, `~/.fx/usage.jsonl`, and `cost.sh` priced each
+generation exactly: the ledger's `total_cost`, or for a BYOK one (KO's
+DeepSeek key on the gateway, 2026-09-11, bills `cost: 0`) the gateway's
+`GET /v1/generation?id=` record. 0.0.14 dropped the ledger and records
+generation ids nowhere: not in `fx ask --json`, the session, a recording or
+`FX_TRACE_LOG`. `fx usage --json` now reads the gateway's `/v1/report`, which
+answers 403 "requires a paid plan" on KO's team (fx reports `"status":
+"failed","reason":"refused"` with every total 0) and covers a whole period,
+not a run. So `cost.sh` takes each `fx ask --json` result's `usage` tokens
+and `model` and multiplies by the catalog's list price. Those tokens have no
+cache-read share, so all input is priced in full: on the default
+`deepseek-v4.1-flash`, 91% cache reads at 1/43 of the input price in the old
+ledger, the figure is about 9× the real one. They are also the main agent's
+only, without the auto reviewer, subagents or Exa, so on a model with little
+caching it can come in under. The footer marks it `≤`; `max_cost` compares
+against it, which makes it a stricter tripwire than it was. The provider comes
+from `resolved_provider`, which the footer shows because the DeepSeek
+providers differ; `provider_order` picks among them. A memory compaction is a
+second request, and `memory.sh` passes its result to `cost.sh` with the main
+run's so the footer covers both. A key's budget caps a BYOK model only when
+the key was made with `--include-byok`, which the README's setup line passes;
+that budget, not the footer, is the real number.
 
 **Secrets are scrubbed from anything published.** fx never prints the key, but
 its shell tool is a child process and inherits the environment — measured, an
@@ -391,10 +389,9 @@ the button.
 **No fx process holds a GitHub token, and the action checks its own files
 after the run.** The `Run fx` step has no `GH_TOKEN`, the examples check out
 with `persist-credentials: false`, and only `open-pr.sh` pushes, to a branch,
-with the token in the URL. Two later fx calls sit inside the `Save memory`
-step, which holds one — the compaction `fx ask` in `memory.sh` and the
-`fx usage` ledger read in `cost.sh` that follows it — so both run under
-`env -u GH_TOKEN`; the environment a child process inherits is the whole
+with the token in the URL. One later fx call sits inside the `Save memory`
+step, which holds one — the compaction `fx ask` in `memory.sh` — so it runs
+under `env -u GH_TOKEN`; the environment a child process inherits is the whole
 reason the main run never got a token either. The Configure step's
 `fx permissions`, `fx status` and `fx doctor` hold no token to strip. That
 leaves one route to the default branch: fx, with a shell, editing
@@ -452,7 +449,7 @@ Every consumer is a repo KO can reach, which is what makes this safe.
 token for a named bot, and for CI to run on what it pushes. No hosted service,
 ever — that is the line between this and the opencode model.
 
-## fx facts checked against 0.0.13
+## fx facts checked against 0.0.14
 
 Verified against the binary, so nobody re-checks them from memory. Recheck
 when fx's version in a footer moves: install the new release into a scratch
@@ -490,9 +487,10 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
   `providers` and `provider` in a repo file are refused
   (`ignored_project_user_only_setting`), so a PR cannot point the gateway key
   at another endpoint.
-- **`fx status --json` reports model, mode and step limit, and nothing
-  else we set**: not effort, not routing, not rules (`fx permissions --json`
-  has those). Effort and routing cannot be read back; fx refusing a malformed
+- **`fx status --json` reports model, mode, step limit and effort, and
+  nothing else we set**: not routing, not rules (`fx permissions --json` has
+  those). Effort is echoed unvalidated, like rule keys (`"hgih"` comes back
+  as `"hgih"`), and reads `auto` when unset. Routing cannot be read back; fx refusing a malformed
   file is the check.
 - **The shell takes two rule keys.** An allow binds under `bash` and not
   under `shell`: with `shell` alone every command went to the auto reviewer
@@ -503,7 +501,7 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
   agent's own memory caught it on 0.0.9 and nobody acted on it.
 - **The allow covers plain commands only.** A pipe or `&&` chain
   (`ls scripts | wc -l`) is reviewed under `bash: {"*": "allow"}` all the
-  same, one call each, on 0.0.11, 0.0.12 and 0.0.13; fx's docs do not say
+  same, one call each, on 0.0.11 through 0.0.14; fx's docs do not say
   so. About $0.0002 a call, so the risk is a caution blocking a routine
   `grep | head`, not the money. `full-access` is not the fix: read mode rides
   on the checks it turns off.
@@ -532,8 +530,9 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
 
 **Sessions and spend**
 
-- **Session JSON is `execution.schema_version` 3**, per turn, on 0.0.13.
-  0.0.13 adds `fx ask --sessions-v2`, opt-in; the action stays on the default
+- **Session JSON is `execution.schema_version` 3**, per turn, on 0.0.14.
+  `--sessions-v2` is still opt-in (0.0.14 adds `fx --sessions-v2 sessions
+  convert`); the action stays on the default
   until v2 is fx's default, so `session-html.py` migrates once.
   `session-html.py` depends on `history[].user.text`, `history[].assistant`,
   `execution.tool_steps[].{assistant,tool_calls,tool_results}`,
@@ -541,9 +540,11 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
   `tool_results[].{tool_call_id,tool_name,status,output,preview,truncated,
   output_bytes,stored_output_bytes,provider_native,permission_feedback}`.
   When the version moves, that file is what breaks.
-- **`fx usage --json` `.totals`** has tokens, cache tokens, `request_count`
-  and `spend`; `spend` is 0 under BYOK. `fx ask` counts the main agent only.
-- **Session titles cost nothing**: no extra `generation` line in the ledger.
+- **fx keeps no spend ledger and no generation ids** (0.0.14). `fx ask
+  --json` has `usage.{input_tokens,output_tokens}` for the main agent,
+  `model` and `resolved_provider`, and that is all. `fx usage --json` is the
+  gateway's period report, refused without a paid plan. See the cost decision
+  above.
 
 **Commands**
 

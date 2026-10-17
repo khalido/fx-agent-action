@@ -195,14 +195,15 @@ inputs:
     default: 'true'
   max_cost:
     description: >-
-      Fail the step when the run costs more than this many US dollars. A
-      tripwire, not a brake. The real brake is a budget on the AI Gateway key
+      Fail the step when the run's cost ceiling (the footer's `≤` figure,
+      list price with no cache discount, several times the real cost) is
+      over this many US dollars. A tripwire, not a brake. The real brake is a budget on the AI Gateway key
       itself (`vercel ai-gateway api-keys create --limit 3 --refresh-period weekly`), which the
       gateway enforces with a 402. 0 disables it. A run that trips it after
       asking for a pull request still gets one: the work is done and throwing
       it away helps nobody.
     required: false
-    default: '1'
+    default: '5'
   github_token:
     description: >-
       Defaults to the workflow's own token, which posts as github-actions[bot].
@@ -461,10 +462,13 @@ runs:
            + (if $effort != "" then {effort:$effort} else {} end)' > "$HOME/.fx/settings.json"
 
         rules=$(fx permissions --json 2>/dev/null | jq -c '[.rules[] | "\(.permission)=\(.action)"]')
-        status=$(fx status --json 2>/dev/null | jq -r '"\(.permission_mode) \(.model) \(.agent_step_limit)"')
+        # Effort is reported since 0.0.14, echoed unvalidated like the rule keys,
+        # so this proves fx read it, not that the level exists.
+        status=$(fx status --json 2>/dev/null | jq -r '"\(.permission_mode) \(.model) \(.agent_step_limit) \(.effort)"')
+        want="auto $MODEL $steps ${EFFORT:-auto}"
         echo "fx configured: $MODE mode; rules $rules; status: $status" >&2
-        [ "$status" = "auto $MODEL $steps" ] \
-          || { echo "::error::fx did not take the settings written for it (wanted 'auto $MODEL $steps', got '$status'). The settings file may be malformed; nothing ran." >&2; exit 1; }
+        [ "$status" = "$want" ] \
+          || { echo "::error::fx did not take the settings written for it (wanted '$want', got '$status'). The settings file may be malformed; nothing ran." >&2; exit 1; }
         printf '%s' "$rules" | jq -e --arg r "$tool_rule" 'index("edit=\($r)") != null and index("bash=\($r)") != null and index("shell=\($r)") != null' >/dev/null \
           || { echo "::error::$MODE-mode permission rules did not register: $rules" >&2; exit 1; }
         fx doctor --json 2>/dev/null | jq -r '"fx doctor: \(.ok_count) ok, \(.warn_count) warn, \(.fail_count) fail; " + ([.checks[] | select(.status != "ok") | "\(.name): \(.detail)"] | join("; "))' >&2 || true
@@ -639,11 +643,10 @@ runs:
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       run: bash "${{ github.action_path }}/scripts/open-pr.sh"
 
-    # After the PR, so a compaction's spend is in the ledger before the footer
-    # reads it; gated on the integrity check like everything that holds a
-    # token; never fails the run. And only when the actor has write access:
-    # an allowed stranger's or bot's run reads the memory and cannot change
-    # what future runs read. Deterministic, in the workflow, not the prompt.
+    # After the PR, so a compaction's cost is in the footer; gated on the
+    # integrity check like everything that holds a token; never fails the run.
+    # And only when the actor has write access: an allowed stranger's or bot's
+    # run reads the memory and cannot change what future runs read. Deterministic, in the workflow, not the prompt.
     - name: Save memory
       id: memory_save
       if: ${{ !cancelled() && steps.integrity.outcome != 'failure' && steps.context.outputs.skip == '' && steps.memory.outputs.memory_path != '' && steps.actor.outputs.write_access == 'true' }}

@@ -75,9 +75,9 @@ runs=$(printf '%s' "$previous" | jq -c --argjson r "$this_run" '. + [$r] | .[-6:
 # Cents with one decimal; dollars from $1. Tokens in k from a thousand.
 footer=$(printf '%s' "$runs" | jq -r '
   def cents: if . == null then "?" elif . >= 1 then "$" + (. * 100 | round / 100 | tostring) else ((. * 1000 | round) / 10 | tostring) + "¢" end;
-  # ≈ when the figure is a list-price estimate (BYOK: the gateway bills nothing).
-  def costof: (if .est == true then "≈" else "" end) + (.c | cents);
-  # who served it, when the gateway told us (BYOK runs); the quality varies by provider.
+  # ≤ when the figure is a list-price ceiling, which every run is since fx 0.0.14.
+  def costof: (if .est == true then "≤" else "" end) + (.c | cents);
+  # who served it, from resolved_provider in fx ask --json; the quality varies by provider.
   def via: if (.p // "") != "" then " via " + .p else "" end;
   def k: if . == null then "?" elif . >= 1000 then ((. / 100 | round) / 10 | tostring) + "k" else tostring end;
   def secs: if . == null then "" else " · " + (tostring) + "s" end;
@@ -87,7 +87,7 @@ footer=$(printf '%s' "$runs" | jq -r '
   (.[-1]) as $n
   | ["[fx](https://fx.sh) `\($n.m)`\($n | via) · \($n.i | k) in / \($n.o | k) out · \($n | costof)\($n.s | secs)\($n | at)\($n | mem) · [run](\($n.u))"]
   + [ .[:-1] | reverse | .[] | "earlier · \(costof)\(.s | secs) · [run](\(.u))" ]
-  + (if length > 1 then ["\(length) runs · \(if any(.[]; .est == true) then "≈" else "" end)\([.[].c | select(. != null)] | add | cents) total"] else [] end)
+  + (if length > 1 then ["\(length) runs · \(if any(.[]; .est == true) then "≤" else "" end)\([.[].c | select(. != null)] | add | cents) total"] else [] end)
   | .[]')
 
 {

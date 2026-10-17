@@ -180,7 +180,7 @@ All optional.
 | `effort` | fx's `auto` | Reasoning effort, `low` to `max`, on models that have it. |
 | `provider_order` | the gateway's choice | Up to 8 gateway providers to try first, e.g. `deepseek, fireworks`. |
 | `timeout_minutes` | `10` | Stop fx after this long, so an unreachable model still ends in a comment. Keep it under the job's `timeout-minutes`. |
-| `max_cost` | `1` | Fail over this many dollars, after the fact. A PR the agent asked for still opens. |
+| `max_cost` | `5` | Fail when the footer's `≤` cost ceiling is over this many dollars, after the fact. The ceiling is several times the real cost. A PR the agent asked for still opens. |
 | `post` | `comment` | `none` leaves the answer on the `response` output. |
 | `comment_key` | | Keeps this job's comment apart from another fx job's. |
 | `session_artifact` | `true` | The run as one HTML file on the run page. |
