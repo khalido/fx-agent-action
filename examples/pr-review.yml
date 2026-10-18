@@ -35,7 +35,7 @@ jobs:
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
         with:
-          model: deepseek/deepseek-v4.1-flash
+          model: deepseek/deepseek-v4.1-flash-1017
           # No shell, no edits, no pull request: a review only reads, and it
           # is the only mode `allowed_bots` combines with on a PR event.
           mode: read

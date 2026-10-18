@@ -239,7 +239,8 @@ weekly; the gateway enforces it, and `max_cost` only notices after the fact.
 vercel ai-gateway api-keys create --name fx-REPO --limit 3 --refresh-period weekly --include-byok
 ```
 
-Runs on this repo cost under 5¢ each on `deepseek/deepseek-v4.1-flash`, so
+Runs on this repo cost under 5¢ each on `deepseek/deepseek-v4.1-flash`, and
+the default is now its `-1017` snapshot at half the price, so
 $3 covers 60 or more a week. A week is short enough that a runaway loop or a
 leaked key costs one week's budget. `--include-byok` counts calls on your own
 provider keys against it too. A key per repo shows which repo spent what.
@@ -248,8 +249,8 @@ The footer on every comment has the model, the provider that served it
 (`via deepseek`), tokens in and out, the cost in cents and the seconds. The
 cost is a ceiling, marked `≤`: fx reports the run's tokens but not how many
 were cache reads, so the action prices all input at the full list rate. On
-`deepseek/deepseek-v4.1-flash`, where most input is cached, that is about 9×
-the real figure, and `max_cost` compares against it. The gateway key's budget
+DeepSeek flash, where most input is cached, that is about 10× the real
+figure, and `max_cost` compares against it. The gateway key's budget
 is the real number. The tokens are the main agent's; the auto reviewer and
 web search are not in them. A comment that gets rewritten stacks its earlier
 runs underneath and a total. The script does the adding.
@@ -259,7 +260,7 @@ nothing for those calls, so a key made without `--include-byok` no longer
 caps that model's spend; the provider's own account does.
 
 Speed varies with who serves the model. The gateway routes a request for
-`deepseek/deepseek-v4.1-flash` to any of a dozen or more providers at
+`deepseek/deepseek-v4.1-flash-1017` to any of a dozen or more providers at
 different prices and speeds. `provider_order: deepseek, fireworks` tries
 those first, then the pool; the slugs are on the gateway's models page. A
 repo's `.fx.json` cannot change this, because the action always writes it.
@@ -267,7 +268,7 @@ BYOK also pins: add your own DeepSeek API key to the gateway and it uses that
 provider first. DeepSeek's own endpoint has peak pricing, double between 01:00
 and 04:00 and 06:00 and 10:00 UTC on weekdays.
 
-Model choice is one input. `deepseek/deepseek-v4.1-flash` is the default; a
+Model choice is one input. `deepseek/deepseek-v4.1-flash-1017` is the default; a
 note runs a few cents, a question about the same, and a change that ends in
 a pull request more, since it runs the tests too. `effort` passes a reasoning
 effort to models that take one. `max_steps` caps the tool loop and is set in

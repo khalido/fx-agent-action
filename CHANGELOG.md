@@ -18,6 +18,9 @@ break and how a release is cut.
   fx 0.0.14.
 - `max_cost` defaults to 5 instead of 1, since it now compares against that
   ceiling: a 1M-token run on `anthropic/claude-sonnet-5` prices at about $3.
+- The default model is `deepseek/deepseek-v4.1-flash-1017`, DeepSeek's 17 October snapshot of
+  v4.1-flash: half the list price, and on a test question here it was right,
+  faster and caught a case the old one missed.
 - The Configure step also reads back `effort`, which `fx status` reports
   since 0.0.14.
 - fx is downloaded on every run instead of cached. The cache never filled on

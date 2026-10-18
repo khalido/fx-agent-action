@@ -168,7 +168,7 @@ All optional.
 |---|---|---|
 | `prompt` | the comment, or the built-in note on an issue event | What to ask. The thread is appended below it. |
 | `prompt_file` | | Instructions in a file in your repo. Wins over `prompt` and the built-in note when it exists. |
-| `model` | `deepseek/deepseek-v4.1-flash` | Any [AI Gateway model id](https://vercel.com/ai-gateway/models). |
+| `model` | `deepseek/deepseek-v4.1-flash-1017` | Any [AI Gateway model id](https://vercel.com/ai-gateway/models). |
 | `mode` | `agent` | What a run may do. `agent` ships: shell, edits, and a draft PR when it decides to. `answer` verifies: the same shell, nothing ever committed or opened. `read` only reads: no shell, no PR. |
 | `memory` | `true` | One `MEMORY.md` on an orphan branch, read before and pushed after each run. Your default branch is never touched. |
 | `memory_branch`, `memory_repo`, `memory_lines` | `agent-memory`, this repo, `80` | Where the memory lives and how long it may get. |

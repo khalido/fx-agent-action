@@ -36,9 +36,9 @@ inputs:
     required: false
     default: ''
   model:
-    description: Any AI Gateway model id, e.g. `deepseek/deepseek-v4.1-flash`, `zai/glm-5.3-flash`, `anthropic/claude-sonnet-5`.
+    description: Any AI Gateway model id, e.g. `deepseek/deepseek-v4.1-flash-1017`, `zai/glm-5.3-flash`, `anthropic/claude-sonnet-5`.
     required: false
-    default: deepseek/deepseek-v4.1-flash
+    default: deepseek/deepseek-v4.1-flash-1017
   mode:
     description: >-
       What this job's runs may do. `agent` (default) ships: it reads,
