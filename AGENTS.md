@@ -330,7 +330,14 @@ changed what the total includes. The tokens are the main agent's only,
 without the auto reviewer, subagents or Exa, so the figure runs low by that
 much. The footer marks it `~`, and `max_cost` compares against it. The
 provider comes from `resolved_provider`, which the footer shows because the DeepSeek
-providers differ; `provider_order` picks among them. A memory compaction is a
+providers differ; `provider_order` picks among them, and defaults to `wafer,
+baseten`. Measured 2026-11-02, two questions about this repo three times each
+per host, every answer correct: wafer 9 s and 0.28¢ a run on average, baseten
+(the gateway's own pick) 14 s and 0.68¢, togetherai 8 s and 0.90¢, deepseek
+15 s and 0.31¢ but without the gateway's no-retention and no-training flags,
+which matters for private repos. Non-strict, so an outage falls back to the
+pool, and a model neither host serves ignores it (measured: claude-haiku-5.5
+with this order went to anthropic). Recheck when the default model changes. A memory compaction is a
 second request, and `memory.sh` passes its result to `cost.sh` with the main
 run's so the footer covers both. A key's budget caps a BYOK model only when
 the key was made with `--include-byok`, which the README's setup line passes;

@@ -18,8 +18,14 @@ break and how a release is cut.
   auto reviewer, subagents and web search are not in it, so it runs a little
   low. Without this, the footer showed no cost and 0 tokens on 0.0.14.
   Checked against fx 0.0.16.
-- `max_cost` defaults to 5 instead of 1: a 1M-token run on
-  `anthropic/claude-sonnet-5` prices at up to $3.
+- `provider_order` defaults to `wafer, baseten` instead of the gateway's
+  choice. On the default model wafer answered as well as baseten, the
+  gateway's usual pick, in two-thirds of the time for under half the price,
+  and both keep no data. Set `provider_order: ''` for the old routing.
+- `max_cost` defaults to 2 instead of 1. A 1M-token run on
+  `anthropic/claude-sonnet-5`, 80% of it cache reads, comes to well under $1
+  with nothing wrong, so 2 trips only a run that has gone wrong; a run on the
+  default model costs about a cent.
 - The default model is `deepseek/deepseek-v4.1-flash-1017`, DeepSeek's 17 October snapshot of
   v4.1-flash: half the list price, and on a test question here it was right,
   faster and caught a case the old one missed.

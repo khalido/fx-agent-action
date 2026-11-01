@@ -260,9 +260,15 @@ caps that model's spend; the provider's own account does.
 
 Speed varies with who serves the model. The gateway routes a request for
 `deepseek/deepseek-v4.1-flash-1017` to any of a dozen or more providers at
-different prices and speeds. `provider_order: deepseek, fireworks` tries
-those first, then the pool; the slugs are on the gateway's models page. A
-repo's `.fx.json` cannot change this, because the action always writes it.
+different prices and speeds, from $0.035 to $0.30 per million input. The
+default `provider_order: wafer, baseten` tries those first, then the pool:
+on two questions about this repo, three runs each, wafer answered correctly
+in 9 seconds for 0.28¢ on average, against 14 seconds and 0.68¢ on baseten,
+which the gateway had been choosing. Both are flagged as keeping no data and
+not training on it; DeepSeek's own endpoint is not. A model neither serves
+ignores the setting. The slugs are on the gateway's models page, and `''`
+leaves routing to the gateway. A repo's `.fx.json` cannot change this,
+because the action always writes it.
 BYOK also pins: add your own DeepSeek API key to the gateway and it uses that
 provider first. DeepSeek's own endpoint has peak pricing, double between 01:00
 and 04:00 and 06:00 and 10:00 UTC on weekdays.
