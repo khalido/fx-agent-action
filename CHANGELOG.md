@@ -10,14 +10,15 @@ break and how a release is cut.
 
 ### Changed
 
-- The footer's cost is now a ceiling, marked `≤`, and `max_cost` compares
+- The footer's cost is now an estimate, marked `~`, and `max_cost` compares
   against it. fx 0.0.14 stopped keeping the per-generation ledger the exact
-  figure came from, so the action prices `fx ask`'s tokens at list price with
-  no cache discount: about 9× the real cost on the default model. Without
-  this, the footer showed no cost and 0 tokens on 0.0.14. Checked against
-  fx 0.0.14.
-- `max_cost` defaults to 5 instead of 1, since it now compares against that
-  ceiling: a 1M-token run on `anthropic/claude-sonnet-5` prices at about $3.
+  figure came from, so the action prices `fx ask`'s tokens at list price,
+  with cache reads at the cache rate from fx 0.0.16, which reports them. The
+  auto reviewer, subagents and web search are not in it, so it runs a little
+  low. Without this, the footer showed no cost and 0 tokens on 0.0.14.
+  Checked against fx 0.0.16.
+- `max_cost` defaults to 5 instead of 1: a 1M-token run on
+  `anthropic/claude-sonnet-5` prices at up to $3.
 - The default model is `deepseek/deepseek-v4.1-flash-1017`, DeepSeek's 17 October snapshot of
   v4.1-flash: half the list price, and on a test question here it was right,
   faster and caught a case the old one missed.

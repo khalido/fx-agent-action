@@ -247,12 +247,10 @@ provider keys against it too. A key per repo shows which repo spent what.
 
 The footer on every comment has the model, the provider that served it
 (`via deepseek`), tokens in and out, the cost in cents and the seconds. The
-cost is a ceiling, marked `≤`: fx reports the run's tokens but not how many
-were cache reads, so the action prices all input at the full list rate. On
-DeepSeek flash, where most input is cached, that is about 10× the real
-figure, and `max_cost` compares against it. The gateway key's budget
-is the real number. The tokens are the main agent's; the auto reviewer and
-web search are not in them. A comment that gets rewritten stacks its earlier
+cost is an estimate, marked `~`: the run's tokens at list price, cache reads
+at the cache rate, and `max_cost` compares against it. The tokens are the
+main agent's; the auto reviewer, subagents and web search are not in them, so
+it runs a little low. The gateway key's budget is the real number. A comment that gets rewritten stacks its earlier
 runs underneath and a total. The script does the adding.
 
 If you add your own provider key to the gateway (BYOK), the gateway bills

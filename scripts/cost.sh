@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
-# What this run has cost at most, in US dollars, and who served it.
+# About what this run cost, in US dollars, and who served it.
 #
 # Usage: cost.sh <fx ask --json result>...  (the main run, plus a memory
 # compaction when there was one). Prints lines for $GITHUB_OUTPUT:
 # `cost=<dollars>`, `cost_estimated=true`, `providers=<comma-separated slugs>`.
 #
-# A ceiling, not a price: each result's input and output tokens times the
-# gateway catalog's list price. Since 0.0.14 fx keeps no per-generation ledger
+# An estimate at list price: each result's tokens times the gateway catalog's
+# price, with cache reads and writes at their own rates when fx reports them
+# (`usage.cache_read_tokens` and `cache_write_tokens`, since 0.0.16, and
+# included in `input_tokens`). Since 0.0.14 fx keeps no per-generation ledger
 # and `fx usage` reads the gateway's spend report, which needs a paid plan and
-# covers a whole period, so tokens are all there is. They come without the
-# cache-read share, so all input is priced in full: on deepseek-v4.1-flash,
-# 91% cache reads at 1/43 of the input price, that overstates about 9×. It
-# also leaves out what `fx ask` does not count (the auto reviewer, Exa).
-# Never fails the run: nothing to say prints nothing.
+# covers a whole period, so tokens are all there is. They are the main agent's
+# only: the auto reviewer, subagents and Exa are not in them, so the figure
+# runs low by that much. Cached tokens that exceed the input total mean fx
+# changed what `input_tokens` counts (measured inclusive on 0.0.16, DeepSeek
+# and Claude): that warns and prints no cost rather than a wrong one. Never
+# fails the run: nothing to say prints nothing.
 set -euo pipefail
 
 [ "$#" -gt 0 ] || exit 0
@@ -24,12 +27,22 @@ if [ ! -s "$catalog" ]; then
 fi
 [ -s "$catalog" ] || exit 0
 
+over=$(jq -r 'select((.usage.cache_read_tokens // 0) + (.usage.cache_write_tokens // 0) > (.usage.input_tokens // 0))
+  | "\(.model): \(.usage.cache_read_tokens // 0) read + \(.usage.cache_write_tokens // 0) written > \(.usage.input_tokens // 0) input"' "$@" 2>/dev/null || true)
+if [ -n "$over" ]; then
+  echo "::warning::No cost: cached tokens exceed input_tokens, so fx's usage fields changed meaning. $(printf '%s' "$over" | tr '\n' ' ')" >&2
+  exit 0
+fi
+
 summary=$(jq -sc --slurpfile cat "$catalog" '
   ($cat[0].data | map({key: .id, value: .pricing}) | from_entries) as $price
-  | select(length > 0)
-  | map({m: .model, p: (.resolved_provider // ""), i: (.usage.input_tokens // 0), o: (.usage.output_tokens // 0)})
+  | def rate($m; $k): ($price[$m][$k] // $price[$m].input // "0") | tonumber;
+  select(length > 0)
+  | map({m: .model, p: (.resolved_provider // ""), i: (.usage.input_tokens // 0), o: (.usage.output_tokens // 0),
+         r: (.usage.cache_read_tokens // 0), w: (.usage.cache_write_tokens // 0)})
   | if any(.[]; $price[.m] == null and (.i + .o) > 0) then empty else . end
-  | {cost: (map(.i * ($price[.m].input // "0" | tonumber) + .o * ($price[.m].output // "0" | tonumber)) | add),
+  | {cost: (map((.i - .r - .w) * rate(.m; "input") + .r * rate(.m; "input_cache_read")
+                + .w * rate(.m; "input_cache_write") + .o * rate(.m; "output")) | add),
      providers: ([.[].p | select(. != "")] | unique | join(","))}' "$@" 2>/dev/null || true)
 [ -n "$summary" ] || exit 0
 
