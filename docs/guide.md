@@ -247,11 +247,12 @@ provider keys against it too. A key per repo shows which repo spent what.
 
 The footer on every comment has the model, the provider that served it
 (`via deepseek`), tokens in and out, the cost in cents and the seconds. The
-cost is an estimate, marked `~`: the run's tokens at list price, cache reads
-at the cache rate, and `max_cost` compares against it. The tokens are the
-main agent's; the auto reviewer, subagents and web search are not in them, so
-it runs a little low. The gateway key's budget is the real number. A comment that gets rewritten stacks its earlier
-runs underneath and a total. The script does the adding.
+cost is an estimate, marked `~`: the run's tokens at the list price of the
+provider that served it, cache reads at the cache rate, and `max_cost`
+compares against it. The tokens are the main agent's; the auto reviewer,
+subagents and web search are not in them, so it runs a little low. The
+gateway key's budget is the real number. A comment that gets rewritten stacks
+its earlier runs underneath and a total. The script does the adding.
 
 If you add your own provider key to the gateway (BYOK), the gateway bills
 nothing for those calls, so a key made without `--include-byok` no longer

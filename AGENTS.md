@@ -37,7 +37,7 @@ before a change ships, and `gh`, `jq` and `python3` are already on every runner.
 | `scripts/redact.py` | the secret scrubber, shared by the answer, the PR text, the session and the memory file |
 | `scripts/post-comment.sh` | upsert one comment, found by a hidden marker |
 | `scripts/open-pr.sh` | when the agent wrote `.agent-pr.md` and the tree changed: branch, commit, push, open the draft PR |
-| `scripts/cost.sh` | about what the run cost: `fx ask`'s tokens at list price, cache reads at the cache rate, for the main run and a memory compaction |
+| `scripts/cost.sh` | about what the run cost: `fx ask`'s tokens at the serving provider's list price, cache reads at the cache rate, for the main run and a memory compaction |
 | `scripts/memory.sh` | `fetch` the memory file from its branch before the run, `save` it after, compacting when over the cap |
 
 If a change wants another file, ask whether it belongs in the prompt instead.
@@ -318,8 +318,11 @@ generation ids nowhere: not in `fx ask --json`, the session, a recording or
 answers 403 "requires a paid plan" on KO's team (fx reports `"status":
 "failed","reason":"refused"` with every total 0) and covers a whole period,
 not a run. So `cost.sh` takes each `fx ask --json` result's `usage` tokens
-and `model` and multiplies by the catalog's list price, cache reads and
-writes at the catalog's cache rates (fx reports them since 0.0.16; on
+and `model` and multiplies by the price of the provider that served it, from
+the gateway's `/v1/models/<id>/endpoints` with its peak-hour multiplier
+(DeepSeek's hosts run from $0.035 to $0.30 per million input, and four of
+the 22 double at peak), falling back to the catalog's headline price. Cache reads and
+writes go at their own rates (fx reports them since 0.0.16; on
 0.0.14 and 0.0.15 all input was priced in full, about 9× the real figure on
 the default model, and the footer said `≤`). Cached counts above
 `input_tokens` print no cost rather than a wrong one, since that would mean fx

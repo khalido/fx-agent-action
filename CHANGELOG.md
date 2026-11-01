@@ -12,8 +12,9 @@ break and how a release is cut.
 
 - The footer's cost is now an estimate, marked `~`, and `max_cost` compares
   against it. fx 0.0.14 stopped keeping the per-generation ledger the exact
-  figure came from, so the action prices `fx ask`'s tokens at list price,
-  with cache reads at the cache rate from fx 0.0.16, which reports them. The
+  figure came from, so the action prices `fx ask`'s tokens at the list price
+  of the provider that served them, peak hours included, with cache reads at
+  the cache rate from fx 0.0.16, which reports them. The
   auto reviewer, subagents and web search are not in it, so it runs a little
   low. Without this, the footer showed no cost and 0 tokens on 0.0.14.
   Checked against fx 0.0.16.
