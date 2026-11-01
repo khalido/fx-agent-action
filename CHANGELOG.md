@@ -10,6 +10,11 @@ break and how a release is cut.
 
 ### Changed
 
+- The base prompt tells the agent to match the work to the ask: start with
+  the file or command the ask points at and widen only when that does not
+  answer it. On two questions about this repo, three runs each, steps fell
+  from 6.3 to 4 on average and cost by about a fifth, with answers just as
+  long and just as right. A duplicate no-preamble line went.
 - The footer's cost is now a ceiling, marked `≤`, and `max_cost` compares
   against it. fx 0.0.14 stopped keeping the per-generation ledger the exact
   figure came from, so the action prices `fx ask`'s tokens at list price with
