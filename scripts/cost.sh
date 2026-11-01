@@ -54,7 +54,8 @@ summary=$(jq -sc --slurpfile cat "$catalog" --slurpfile ep <(cat /dev/null ${end
   # minute of the UTC day and weekday (0 = Sunday) now, for peak windows
   | (now | gmtime) as $t | ($t[3] * 60 + $t[4]) as $min | ($t[6]) as $dow
   | ($ep | map(.data.id)) as $listed
-  | ($ep | map(.data | .id as $id | .endpoints[]? | {key: "\($id)|\(.provider_name)", value: (.pricing as $p
+  # a host without both base prices is treated as unlisted: catalog price, warning
+  | ($ep | map(.data | .id as $id | .endpoints[]? | select(.pricing.prompt != null and .pricing.completion != null) | {key: "\($id)|\(.provider_name)", value: (.pricing as $p
       # a window whose end is before its start runs past midnight
       | ([$p.peak_pricing.windows[]? | select((if .start_minute_utc <= .end_minute_utc
             then $min >= .start_minute_utc and $min < .end_minute_utc
@@ -76,7 +77,7 @@ summary=$(jq -sc --slurpfile cat "$catalog" --slurpfile ep <(cat /dev/null ${end
 [ -n "$summary" ] || exit 0
 
 unlisted=$(printf '%s' "$summary" | jq -r '.unlisted')
-[ -z "$unlisted" ] || echo "::warning::Priced at the catalog's headline price: the gateway's endpoints list has no such provider for $unlisted." >&2
+[ -z "$unlisted" ] || echo "::warning::Priced at the catalog's headline price: the gateway's endpoints list has no prices for $unlisted." >&2
 
 printf 'cost=%s\ncost_estimated=true\nproviders=%s\n' \
   "$(printf '%s' "$summary" | jq -r '.cost')" \
