@@ -8,7 +8,8 @@ already exists, and the answer when the issue is a question.
 
 Comment `/fx` with a question and it answers. Say "fix this" and it makes the
 change, runs your checks and opens a draft pull request. If the change is too
-big for one run, it says what it would change instead. It runs on your own
+big for one run, it says what it would change instead. Each comment gets
+its own reply, edited in place when you edit the comment. It runs on your own
 runner, with no app to install and no service in the middle.
 
 ```yaml
@@ -99,7 +100,8 @@ workflow's `permissions:` block is what decides whether it can push at all.
 **Never want a pull request?** Set `mode: answer`. The agent keeps its
 shell, so it still runs your tests and tries the fix, but nothing is pushed.
 To make a push impossible, not merely unasked for, also set
-`contents: read`. Use both on a repo where `main` deploys on push. `mode: read`
+`contents: read` and `memory: false`. Use all three on a repo where `main`
+deploys on push. `mode: read`
 also takes the shell away, so the agent can only read.
 
 `/fx` can go anywhere in the comment, in any case, but not in a quoted
@@ -110,8 +112,8 @@ GitHub.
 ## Changing what it says
 
 The built-in note is [`prompts/issue.md`](prompts/issue.md). When it gets
-better here, it gets better in every repo on the next run. Your repo adds to
-it in four ways.
+better here, it gets better in every repo on the next run. Your repo changes
+what the agent does in four ways.
 
 **What your repo wants goes in [`AGENTS.md`](https://agents.md).** fx reads
 it on every run, the same file your other agents read, and it may add to or
@@ -127,7 +129,7 @@ skill folders already in your repo. For skills only this agent should have,
 use `.github/fx/skills/`. `skills: false` turns the copy off.
 [`docs/skills.md`](docs/skills.md) lists the candidates for more.
 
-**Memory.** The agent keeps one `MEMORY.md` on an `agent-memory` branch:
+**Memory.** On by default. The agent keeps one `MEMORY.md` on an `agent-memory` branch:
 what earlier runs learned about this repo. Each run reads it first and may
 edit it with its ordinary tools. The action pushes it back only from runs by
 people with write access. When it grows past `memory_lines`, one cheap call
@@ -150,7 +152,7 @@ event. If either says no, the run fails. `allowed_non_write_users` and
 which has no shell and opens nothing. Keep the `if:` on the job too: it stops
 a stranger's `/fx` from starting a runner at all.
 
-Everyone with write access can get a change shipped, because the agent
+Everyone with write access can get a draft PR opened, because the agent
 decides when a request is worth a pull request. The workflow's
 `permissions:` block decides what the agent can do, and branch protection is
 what makes "at most a draft PR" true. The thread goes to the model as
@@ -207,7 +209,8 @@ Outputs: `response`, `cost`, `steps`, `session_id`, `comment_url`, `pr_url`.
 Every run uploads the session as one HTML file, kept a week: every tool
 call with its arguments and result, web searches included. Read it before
 guessing. The comment footer names the model and the provider that served it,
-the tokens, the estimated cost and a link to the run.
+the tokens, the estimated cost, the time and a link to the run. A rewritten
+comment lists its earlier runs and a total.
 
 ## Why fx
 
@@ -224,7 +227,8 @@ This action is the GitHub plumbing around it and nothing else.
 
 [docs/guide.md](docs/guide.md) is everything else in one file: the three
 modes, the prompt layer by layer, the actor checks in detail, pull requests
-and App tokens, cost, and what fails on the first day. For an agent, the raw copy is
+and App tokens, cost, and what fails on the first day. For an agent, the
+raw copy is
 `https://raw.githubusercontent.com/khalido/fx-agent-action/main/docs/guide.md`.
 [docs/prior-art.md](docs/prior-art.md) is what the other coding-agent actions
 do and where this one differs. Working on the action itself?
