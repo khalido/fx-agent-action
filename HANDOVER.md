@@ -48,7 +48,7 @@ One loose end outside this repo: **`khalido/rd` migrated its workflow to
 1.1.0's inputs in `fb5a852` but never pushed it** (its main is ahead of
 origin), so origin still passes `shell: true` and every `/fx` there fails on
 the first step. Noted in rd's `BOARD.md`; it needs a push from an rd session.
-KO's repos ride `@main` on purpose; `jaldi` and `sfl-parts` pin `@v1`.
+All of KO's consumer repos ride `@main` on purpose; none pins `@v1` (checked 2026-11-02).
 
 ## Not in flight, but parked and worth knowing
 
