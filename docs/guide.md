@@ -247,13 +247,12 @@ provider keys against it too. A key per repo shows which repo spent what.
 
 The footer on every comment has the model, the provider that served it
 (`via deepseek`), tokens in and out, the cost in cents and the seconds. The
-cost is a ceiling, marked `≤`: fx reports the run's tokens but not how many
-were cache reads, so the action prices all input at the full list rate. On
-DeepSeek flash, where most input is cached, that is about 10× the real
-figure, and `max_cost` compares against it. The gateway key's budget
-is the real number. The tokens are the main agent's; the auto reviewer and
-web search are not in them. A comment that gets rewritten stacks its earlier
-runs underneath and a total. The script does the adding.
+cost is an estimate, marked `~`: the run's tokens at the list price of the
+provider that served it, cache reads at the cache rate, and `max_cost`
+compares against it. The tokens are the main agent's; the auto reviewer,
+subagents and web search are not in them, so it runs a little low. The
+gateway key's budget is the real number. A comment that gets rewritten stacks
+its earlier runs underneath and a total. The script does the adding.
 
 If you add your own provider key to the gateway (BYOK), the gateway bills
 nothing for those calls, so a key made without `--include-byok` no longer
@@ -261,9 +260,15 @@ caps that model's spend; the provider's own account does.
 
 Speed varies with who serves the model. The gateway routes a request for
 `deepseek/deepseek-v4.1-flash-1017` to any of a dozen or more providers at
-different prices and speeds. `provider_order: deepseek, fireworks` tries
-those first, then the pool; the slugs are on the gateway's models page. A
-repo's `.fx.json` cannot change this, because the action always writes it.
+different prices and speeds, from $0.035 to $0.30 per million input. The
+default `provider_order: wafer, baseten` tries those first, then the pool:
+on two questions about this repo, three runs each, wafer answered correctly
+in 9 seconds for 0.28¢ on average, against 14 seconds and 0.68¢ on baseten,
+which the gateway had been choosing. Both are flagged as keeping no data and
+not training on it; DeepSeek's own endpoint is not. A model neither serves
+ignores the setting. The slugs are on the gateway's models page, and `''`
+leaves routing to the gateway. A repo's `.fx.json` cannot change this,
+because the action always writes it.
 BYOK also pins: add your own DeepSeek API key to the gateway and it uses that
 provider first. DeepSeek's own endpoint has peak pricing, double between 01:00
 and 04:00 and 06:00 and 10:00 UTC on weekdays.

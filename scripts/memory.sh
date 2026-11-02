@@ -142,7 +142,7 @@ save)
     fi
     # The compaction was a billed request; the footer should carry it.
     bash "$(dirname "$0")/cost.sh" "${RUNNER_TEMP:-/tmp}/fx-result.json" "$state/compact.json" \
-      >> "${GITHUB_OUTPUT:-/dev/null}" 2>/dev/null || true
+      >> "${GITHUB_OUTPUT:-/dev/null}" || true
   fi
 
   sha=$(cat "$state/sha" 2>/dev/null || true)

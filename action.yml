@@ -152,10 +152,13 @@ inputs:
     description: >-
       Gateway providers to try first for the model, up to 8 comma-separated
       slugs as the gateway spells them (`deepseek, fireworks`), then its default
-      routing. Empty is the gateway's own choice. Set here either way, so a
-      repo's `.fx.json` cannot route the run.
+      routing. The default suits the default model: of four DeepSeek hosts
+      tested, wafer was the cheapest and among the fastest with correct
+      answers, baseten is the fallback, and both keep no data. A model those two do not serve ignores
+      it. Empty is the gateway's own choice. Set here either way, so a repo's
+      `.fx.json` cannot route the run.
     required: false
-    default: ''
+    default: 'wafer, baseten'
   timeout_minutes:
     description: >-
       Stop fx after this many minutes and report the run as failed. fx waits
@@ -195,15 +198,14 @@ inputs:
     default: 'true'
   max_cost:
     description: >-
-      Fail the step when the run's cost ceiling (the footer's `≤` figure,
-      list price with no cache discount, several times the real cost) is
-      over this many US dollars. A tripwire, not a brake. The real brake is a budget on the AI Gateway key
+      Fail the step when the run's estimated cost (the footer's `~` figure,
+      the main agent's tokens at list price) is over this many US dollars. A tripwire, not a brake. The real brake is a budget on the AI Gateway key
       itself (`vercel ai-gateway api-keys create --limit 3 --refresh-period weekly`), which the
       gateway enforces with a 402. 0 disables it. A run that trips it after
       asking for a pull request still gets one: the work is done and throwing
       it away helps nobody.
     required: false
-    default: '5'
+    default: '2'
   github_token:
     description: >-
       Defaults to the workflow's own token, which posts as github-actions[bot].
