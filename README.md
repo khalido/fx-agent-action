@@ -3,15 +3,14 @@
 [![check](https://github.com/khalido/fx-agent-action/actions/workflows/check.yml/badge.svg)](https://github.com/khalido/fx-agent-action/actions/workflows/check.yml)
 
 An agent on your issues. Open one and [fx](https://fx.sh), Vercel Labs'
-coding agent, reads the code and leaves a note: where this lives, what is
-already there, and the answer itself when the issue turns out to be a
-question. Comment `/fx` with a question and it answers; say "fix this" or
-"add that" and it makes the change, runs your checks, and opens a draft pull
-request when it judges it can do the job in one run, or leaves a note saying
-what it would change and what a stronger agent should pick up. It runs in
-your own runner, no app to install, no service in the middle. Each comment
-gets its own reply, edited in place, so a thread reads as question and answer
-pairs.
+coding agent, reads the code and leaves a note: where the issue lives, what
+already exists, and the answer when the issue is a question.
+
+Comment `/fx` with a question and it answers. Say "fix this" and it makes the
+change, runs your checks and opens a draft pull request. If the change is too
+big for one run, it says what it would change instead. Each comment gets
+its own reply, edited in place when you edit the comment. It runs on your own
+runner, with no app to install and no service in the middle.
 
 ```yaml
 # .github/workflows/fx.yml
@@ -61,15 +60,12 @@ gh api -X PUT repos/OWNER/REPO/actions/permissions/workflow \
 
 That is the setup. The [Vercel CLI](https://vercel.com/docs/cli) makes an
 [AI Gateway](https://vercel.com/ai-gateway) key for this repo alone, with a
-$3 budget that resets every week. Then the secret, and the switch GitHub
-leaves off that lets a workflow open a pull request. `gh secret set` prompts for the key, which keeps it out of your shell
-history; a script or an agent doing this unattended passes `--body` or pipes it
-in. The same file with comments is [`examples/fx.yml`](examples/fx.yml);
-this repo runs it on itself. One job, one agent: a new issue gets a note,
-a `/fx` comment gets whatever it asked for. Only want answers? Set
-`contents: read` and `memory: false`: the agent may still try a change, but
-the push fails and the comment says so instead of linking a PR. `mode: read`
-takes the shell away too, at the cost of the tests it could have run.
+$3 budget that resets every week. `gh secret set` prompts for the key, which
+keeps it out of your shell history; an unattended script passes `--body`. The
+last command turns on the setting that lets a workflow open a pull request.
+
+[`examples/fx.yml`](examples/fx.yml) is the same file with comments, and this
+repo runs it on itself.
 
 ## What happens
 
@@ -101,64 +97,72 @@ that is not its to make, it says what it would change and where, and what a
 stronger agent or a person should pick up. There is no magic word; the
 workflow's `permissions:` block is what decides whether it can push at all.
 
-**Never want a pull request?** `mode: answer`. The agent keeps its shell, so
-it still runs your tests and tries the fix before it answers, and the
-checkout is thrown away every time. That is the setting for a repo where
-`main` deploys on push and nothing should ever open a branch.
+**Never want a pull request?** Set `mode: answer`. The agent keeps its
+shell, so it still runs your tests and tries the fix, but nothing is pushed.
+To make a push impossible, not merely unasked for, also set
+`contents: read` and `memory: false`. Use all three on a repo where `main`
+deploys on push. `mode: read`
+also takes the shell away, so the agent can only read.
 
-`/fx` can sit anywhere in the comment, any case, but not in a quoted line.
-`trigger: '/fx, /agent'` accepts several phrases; widen the job's `if:` to
-match. A slash and not a mention because `@fx` is a real person on GitHub.
+`/fx` can go anywhere in the comment, in any case, but not in a quoted
+line. `trigger: '/fx, /agent'` accepts several phrases; widen the job's `if:`
+to match. It is a slash and not a mention because `@fx` is a real person on
+GitHub.
 
 ## Changing what it says
 
-The action already knows how to be an agent in a runner: where it is, which
-tools it has, that nobody will answer it, how the answer is posted, how a PR
-happens. The note it leaves on an issue is built in too,
-[`prompts/issue.md`](prompts/issue.md), and when that prompt gets better here
-it gets better in every repo on the next run. What a repo adds is about the
-repo, and there are two doors.
+The built-in note is [`prompts/issue.md`](prompts/issue.md). When it gets
+better here, it gets better in every repo on the next run. Your repo changes
+what the agent does in four ways.
 
 **What your repo wants goes in [`AGENTS.md`](https://agents.md).** fx reads
-it on every run, for every trigger, the same file your other agents read, and
-the base block tells it that file may add to or adjust the task. So adding to the note is two lines
-there: "when you leave a note on an issue, name the design doc that covers it;
-anything that needs taste is KO's call". A short `## In CI` section keeps it
-apart from laptop instructions like "run the app and click".
+it on every run, the same file your other agents read, and it may add to or
+adjust the task. To add to the note, write two lines there: "when you leave a
+note on an issue, name the design doc that covers it; anything that needs
+taste is the maintainer's call". Put them under `## In CI` to keep them apart
+from laptop instructions like "run the app and click".
 
-**Skills.** The action ships its own under [`skills/`](skills/): `open-pr`,
-how a change ships (clean tree, checks run, one file with the title and
-body), and `compare-models`, which checks a model's id and price on the
-gateway, what people hit with it, and whether it fits this repo's jobs. They
-are copied into fx's skill folder on the runner for that run only. Your repo's own skill
-folders are seen as they are; `.github/fx/skills/` is copied the same way for
-skills only this agent should have. `skills: false` turns the copy off.
+**Skills.** The action ships two under [`skills/`](skills/): `open-pr`, how
+a change ships, and `compare-models`, how to judge a gateway model. They are
+copied into fx's skill folder on the runner for that run. fx also finds the
+skill folders already in your repo. For skills only this agent should have,
+use `.github/fx/skills/`. `skills: false` turns the copy off.
+[`docs/skills.md`](docs/skills.md) lists the candidates for more.
 
-**Memory.** On by default: the agent keeps one `MEMORY.md` on an
-`agent-memory` branch: what earlier runs learned about this repo, read before
-each run, edited by the agent with its ordinary tools, pushed back after the
-run if it changed, and only from runs by people with write access; an allowed
-stranger's run reads it and cannot change it. A model of the repo, not a
-diary, and when it grows past `memory_lines` the action compacts it with one
-cheap call. Read it on the
-branch, edit it yourself, or delete the branch to forget. Needs
-`contents: write` on the job for the push; fx never holds that token.
+**Memory.** On by default. The agent keeps one `MEMORY.md` on an `agent-memory` branch:
+what earlier runs learned about this repo. Each run reads it first and may
+edit it with its ordinary tools. The action pushes it back only from runs by
+people with write access. When it grows past `memory_lines`, one cheap call
+compacts it. Read it or edit it on the branch, or delete the branch to
+forget. The push needs `contents: write`; fx never holds that token.
 
 **A different note goes in `.github/fx/issue.md`.** When that file exists
-the action uses it on issue events instead of the built-in note, no input
-needed. Start from the built-in text. `prompt` or `prompt_file` on a job
-replaces the instruction for every event that job handles, for a job that is
-not the note. For `/fx` comments the prompt is the comment.
+the action uses it on issue events instead of the built-in note. Start from
+the built-in text. `prompt` or `prompt_file` replaces the instruction for
+every event the job handles, which suits a job that is not the note. On a
+`/fx` comment, the comment is the prompt.
 
-## Who can trigger a run
+## Who can trigger a run, and what it can do
 
-Two checks before anything else, the same two
-[claude-code-action](https://github.com/anthropics/claude-code-action) runs,
-and the run fails if either says no: write access to the repo on issue and PR
-events, and a human actor on every event. `allowed_non_write_users` and
-`allowed_bots` are the exceptions, and only combine with `mode: read`, which
-has no shell and opens nothing. Keep the `if:` on the job too; it is what
-stops a stranger's `/fx` from booting a runner at all.
+The action runs two checks first, the same two
+[claude-code-action](https://github.com/anthropics/claude-code-action) runs:
+write access to the repo on issue and PR events, and a human actor on every
+event. If either says no, the run fails. `allowed_non_write_users` and
+`allowed_bots` are the exceptions, and they only work with `mode: read`,
+which has no shell and opens nothing. Keep the `if:` on the job too: it stops
+a stranger's `/fx` from starting a runner at all.
+
+Everyone with write access can get a draft PR opened, because the agent
+decides when a request is worth a pull request. The workflow's
+`permissions:` block decides what the agent can do, and branch protection is
+what makes "at most a draft PR" true. The thread goes to the model as
+evidence, with hidden markup stripped. The agent reads your repo's
+`AGENTS.md` and skill folders, the same ones your laptop agent uses. Anyone
+who can trigger a run can spend the key, so give the key its own budget. The
+[guide](docs/guide.md#before-you-turn-it-on) has the full list, including
+what a private repo on the free plan, which cannot have
+[branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches),
+is trusting.
 
 ## Inputs
 
@@ -202,28 +206,11 @@ Outputs: `response`, `cost`, `steps`, `session_id`, `comment_url`, `pr_url`.
 
 ## When it goes wrong
 
-Every run uploads the session as one HTML file, kept a week: every tool call,
-its arguments, its result, including web searches with the date window they
-used. Read that before guessing. The comment footer has the model, tokens, cost
-in cents and a link to the run; a rewritten comment stacks its earlier runs and
-a total.
-
-## Before you turn it on
-
-The thread goes to the model as evidence, with hidden markup stripped. The
-workflow's `permissions:` block decides what the agent can do, not this action,
-and branch protection is what makes "at most a draft PR" true. Since the agent
-decides for itself when a request is worth shipping, more runs reach the push
-than when a keyword was needed, so the trust boundary is everyone with write
-access to the repo rather than everyone with write access who also typed the
-word. On a private repo that is usually the point; on a public one, read the
-actor checks below. The agent reads
-your repo's `AGENTS.md` and sees every skill folder in it, the same ones your
-laptop agent uses. Anyone who can trigger a run can spend the key, so give the
-key its own budget. The [guide](docs/guide.md#before-you-turn-it-on) has the
-full list, including what a private repo on the free plan, which cannot have
-[branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches),
-is trusting.
+Every run uploads the session as one HTML file, kept a week: every tool
+call with its arguments and result, web searches included. Read it before
+guessing. The comment footer names the model and the provider that served it,
+the tokens, the estimated cost, the time and a link to the run. A rewritten
+comment lists its earlier runs and a total.
 
 ## Why fx
 
@@ -238,10 +225,10 @@ This action is the GitHub plumbing around it and nothing else.
 
 ## The rest
 
-[docs/guide.md](docs/guide.md) is everything else in one file: the two
+[docs/guide.md](docs/guide.md) is everything else in one file: the three
 modes, the prompt layer by layer, the actor checks in detail, pull requests
-and App tokens, cost, and what fails on the first day. For an agent, the raw
-copy is
+and App tokens, cost, and what fails on the first day. For an agent, the
+raw copy is
 `https://raw.githubusercontent.com/khalido/fx-agent-action/main/docs/guide.md`.
 [docs/prior-art.md](docs/prior-art.md) is what the other coding-agent actions
 do and where this one differs. Working on the action itself?

@@ -107,7 +107,7 @@ jobs:
           max_steps: '60'
           # Never want a pull request from it? `mode: answer` keeps the shell,
           # so it still runs your tests before it answers, and opens nothing.
-          # Belt and braces is that plus `contents: read` above.
+          # Belt and braces is that plus `contents: read` above and `memory: false`.
           # mode: answer
           # On a manual run these are set; on an issue or comment event they
           # are empty and the action falls back to the event.
