@@ -74,7 +74,7 @@ check that the action is checked against the current one:
 
 ```bash
 gh release list --repo vercel-labs/fx --limit 5
-grep -m1 '^## fx facts checked against' AGENTS.md
+grep -m1 '^## fx facts' AGENTS.md
 ```
 
 If fx is ahead of that heading, read the release notes for each version

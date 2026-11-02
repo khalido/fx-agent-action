@@ -8,51 +8,57 @@ break and how a release is cut.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-02
+
+Checked against fx 0.0.16.
+
+### Fixed
+
+- The footer shows a cost again, and `max_cost` works again. fx 0.0.14
+  dropped the per-generation ledger the old figure came from, so on 1.3.0 the
+  footer showed no cost and 0 tokens and `max_cost` never tripped. The action
+  now prices `fx ask`'s tokens at the list price of the provider that served
+  them, peak hours included, with cache reads at the cache rate (fx 0.0.16
+  reports them). It is an estimate, marked `~`: the auto reviewer, subagents
+  and web search are not in it, so it runs a little low.
+
 ### Changed
 
-- The `open-pr` skill tells the agent to grep the docs for what a change
-  alters and fix what now reads wrong, in the same pull request.
-- The `compare-models` skill prices a test run by the provider that served
-  it, cache reads included, the same way the footer does.
+- `provider_order` defaults to `wafer, baseten` instead of the gateway's
+  choice. On the default model wafer answered as well as baseten, the
+  gateway's usual pick, in two-thirds of the time for under half the price,
+  and both keep no data. A model neither serves ignores it. Set
+  `provider_order: ''` for the old routing.
+- `max_cost` defaults to 2 instead of 1. A 1M-token run on
+  `anthropic/claude-sonnet-5`, 80% of it cache reads, comes to well under $1,
+  so 2 trips only a run that has gone wrong; a run on the default model costs
+  about a cent.
+- The default model is `deepseek/deepseek-v4.1-flash-1017`, DeepSeek's 17
+  October snapshot of v4.1-flash: half the list price, and on a test question
+  here it was right, faster and caught a case the old one missed.
 - The base prompt tells the agent to match the work to the ask: start with
   the file or command the ask points at and widen only when that does not
   answer it. On two questions about this repo, three runs each, steps fell
   from 6.3 to 4 on average and cost by about a fifth, with answers just as
-  long and just as right. A duplicate no-preamble line went.
-- The footer's cost is now an estimate, marked `~`, and `max_cost` compares
-  against it. fx 0.0.14 stopped keeping the per-generation ledger the exact
-  figure came from, so the action prices `fx ask`'s tokens at the list price
-  of the provider that served them, peak hours included, with cache reads at
-  the cache rate from fx 0.0.16, which reports them. The
-  auto reviewer, subagents and web search are not in it, so it runs a little
-  low. Without this, the footer showed no cost and 0 tokens on 0.0.14.
-  Checked against fx 0.0.16.
-- `provider_order` defaults to `wafer, baseten` instead of the gateway's
-  choice. On the default model wafer answered as well as baseten, the
-  gateway's usual pick, in two-thirds of the time for under half the price,
-  and both keep no data. Set `provider_order: ''` for the old routing.
-- `max_cost` defaults to 2 instead of 1. A 1M-token run on
-  `anthropic/claude-sonnet-5`, 80% of it cache reads, comes to well under $1
-  with nothing wrong, so 2 trips only a run that has gone wrong; a run on the
-  default model costs about a cent.
-- The default model is `deepseek/deepseek-v4.1-flash-1017`, DeepSeek's 17 October snapshot of
-  v4.1-flash: half the list price, and on a test question here it was right,
-  faster and caught a case the old one missed.
-- The Configure step also reads back `effort`, which `fx status` reports
-  since 0.0.14.
-- fx is downloaded on every run instead of cached. The cache never filled on
-  issue or comment runs, each of which logged a "Failed to save" warning, and
-  the download takes half a second (#26).
-
-- The thread shows each author's relation to the repo (OWNER, MEMBER,
-  CONTRIBUTOR, NONE…), and the agent is told not to fetch links posted by
-  anyone outside the repo unless the instruction asks. Web search and fetch
-  stay on in every mode.
+  long and just as right.
 - Tighter writing rules in the base prompt: one term per thing, steps with
   one action each and the condition first, no announcing labels ("Summary:"),
   no retelling the issue to the people who wrote it, and a recommendation
   first when someone has to decide. On two issues here, answers came out
   10–18% shorter.
+- The thread shows each author's relation to the repo (OWNER, MEMBER,
+  CONTRIBUTOR, NONE…), and the agent is told not to fetch links posted by
+  anyone outside the repo unless the instruction asks. Web search and fetch
+  stay on in every mode.
+- The `open-pr` skill tells the agent to grep the docs for what a change
+  alters and fix what now reads wrong, in the same pull request.
+- The `compare-models` skill prices a test run by the provider that served
+  it, cache reads included, the same way the footer does.
+- The Configure step also reads back `effort`, which `fx status` reports
+  since 0.0.14.
+- fx is downloaded on every run instead of cached. The cache never filled on
+  issue or comment runs, each of which logged a "Failed to save" warning, and
+  the download takes half a second (#26).
 - The setup line makes a key per repo with a $3 budget that resets weekly and
   counts BYOK spend. A key made before this does not cap BYOK spend, and the
   CLI cannot change that on an existing key: make a new one and reset the
@@ -370,7 +376,8 @@ what changed.
   [`docs/agent-memory.md`](docs/agent-memory.md) as the surveys behind the
   choices.
 
-[Unreleased]: https://github.com/khalido/fx-agent-action/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/khalido/fx-agent-action/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/khalido/fx-agent-action/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/khalido/fx-agent-action/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/khalido/fx-agent-action/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/khalido/fx-agent-action/compare/v1.0.0...v1.1.0
