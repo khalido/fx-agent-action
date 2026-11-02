@@ -27,12 +27,28 @@ Read it, do the work, and **before you finish, leave it true**:
 
 ## In flight
 
-Nothing in this repo. One loose end outside it: **`khalido/rd` migrated its
-workflow to 1.1.0's inputs in `fb5a852` but never pushed it** (its main is
-ahead of origin), so origin still passes `shell: true` and every `/fx` there
-fails on the first step. Noted in rd's `BOARD.md`; it needs a push from an rd
-session. KO's repos ride `@main` on purpose; `jaldi` and `sfl-parts` pin
-`@v1`.
+Nothing half-built. Small follow-ups from the fx 0.0.16 pass (2026-11-02,
+#27–#29), none started:
+
+- **`/fx` on a PR reads the pre-change files.** `examples/fx.yml` checks out
+  the default branch on `issue_comment`, so the agent gets the PR diff in the
+  prompt (`include_diff`) but every file it opens is the old version. Fix in
+  the example (check out the PR head on PR comments) and in this repo's
+  `fx.yml`, which `check.yml` keeps identical.
+- **`skills/compare-models/SKILL.md` still calls list-price tokens the spend
+  "at most".** Since 0.0.16 they include cache reads and `cost.sh` prices the
+  serving host; the skill should say the same. Listed in `docs/skills.md`.
+- **Answers to questions average about 280 words** against the base block's
+  250 cap, before and after #29. Watch it; not worth a prompt change yet.
+- **`provider_order: wafer, baseten`** came from 6 local runs per host on two
+  questions. The gateway's stats for wafer look thin (p50 equals p95), so if
+  footers start showing slow wafer runs or `via baseten` often, recheck.
+
+One loose end outside this repo: **`khalido/rd` migrated its workflow to
+1.1.0's inputs in `fb5a852` but never pushed it** (its main is ahead of
+origin), so origin still passes `shell: true` and every `/fx` there fails on
+the first step. Noted in rd's `BOARD.md`; it needs a push from an rd session.
+KO's repos ride `@main` on purpose; `jaldi` and `sfl-parts` pin `@v1`.
 
 ## Not in flight, but parked and worth knowing
 

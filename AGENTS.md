@@ -683,6 +683,16 @@ this checkout with scratch-mode rules and a brief that asks for defects ranked
 by severity, then check every finding against the code before fixing it. The
 first one found six real defects in an afternoon's work.
 
+**A change to the base block is A/B tested on both paths.** Build the prompt
+with `scripts/build-prompt.sh` from `main` and from the branch, then run each
+through `fx ask --json` in a scratch clone, three times or more: once with a
+comment-style question, once as the built-in note (`GITHUB_EVENT_NAME=issues`,
+an event file holding a real issue, `issues.json` copied into the clone).
+Compare `steps`, tokens, words and `tool_calls`, and read the answers. The
+question path alone is not enough: on 2026-11-02 a clause that cut steps on
+questions made one note run in four write a fix and invoke `open-pr`, against
+the note prompt's "pointing, not building", and only the note path showed it.
+
 ## References
 
 - [Creating a composite action](https://docs.github.com/en/actions/tutorials/create-actions/create-a-composite-action)
