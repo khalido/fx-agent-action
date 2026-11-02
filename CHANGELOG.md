@@ -10,6 +10,10 @@ break and how a release is cut.
 
 ### Changed
 
+- The `open-pr` skill tells the agent to grep the docs for what a change
+  alters and fix what now reads wrong, in the same pull request.
+- The `compare-models` skill prices a test run by the provider that served
+  it, cache reads included, the same way the footer does.
 - The base prompt tells the agent to match the work to the ask: start with
   the file or command the ask points at and widen only when that does not
   answer it. On two questions about this repo, three runs each, steps fell

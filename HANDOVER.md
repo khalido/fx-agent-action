@@ -35,9 +35,6 @@ Nothing half-built. Small follow-ups from the fx 0.0.16 pass (2026-11-02,
   prompt (`include_diff`) but every file it opens is the old version. Fix in
   the example (check out the PR head on PR comments) and in this repo's
   `fx.yml`, which `check.yml` keeps identical.
-- **`skills/compare-models/SKILL.md` still calls list-price tokens the spend
-  "at most".** Since 0.0.16 they include cache reads and `cost.sh` prices the
-  serving host; the skill should say the same. Listed in `docs/skills.md`.
 - **Answers to questions average about 280 words** against the base block's
   250 cap, before and after #29. Watch it; not worth a prompt change yet.
 - **`provider_order: wafer, baseten`** came from 6 local runs per host on two

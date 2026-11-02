@@ -15,13 +15,9 @@ The skills this action copies into `~/.fx/skills/` on every run, and candidates 
 
 How a change ships: a clean tree, the repo's own checks, then `.agent-pr.md`. Whether to ship is judgement, so it stays in the base block. The skill holds the mechanics.
 
-Open: add "grep the docs for what you changed" to its checklist, so a behaviour change doesn't leave the README behind.
-
 ### `compare-models`
 
 Checking a gateway model: catalog, what people hit, and fit with this repo.
-
-Open: it says a run's tokens at list price are the spend "at most". Since fx 0.0.16 they include cache reads, and `cost.sh` prices by the host that served the run, so the skill should say the same.
 
 ## Candidates
 
