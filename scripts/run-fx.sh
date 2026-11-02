@@ -81,10 +81,10 @@ fi
 # masking.
 python3 "$(dirname "$0")/redact.py" "$response_path" "the agent answer"
 
-# `fx ask --json` reports tokens but no price, so cost.sh prices them at list:
-# a ceiling, since the tokens come without their cache-read share. Prints
+# `fx ask --json` reports tokens but no price, so cost.sh prices them at list,
+# cache reads at their own rate: an estimate of the main agent's share. Prints
 # cost=, cost_estimated= and providers= lines.
-cost_lines=$(bash "$(dirname "$0")/cost.sh" "$out" 2>/dev/null || true)
+cost_lines=$(bash "$(dirname "$0")/cost.sh" "$out" || true)
 cost=$(printf '%s\n' "$cost_lines" | sed -n 's/^cost=//p')
 cost_estimated=$(printf '%s\n' "$cost_lines" | sed -n 's/^cost_estimated=//p')
 providers=$(printf '%s\n' "$cost_lines" | sed -n 's/^providers=//p')

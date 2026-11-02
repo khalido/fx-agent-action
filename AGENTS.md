@@ -37,7 +37,7 @@ before a change ships, and `gh`, `jq` and `python3` are already on every runner.
 | `scripts/redact.py` | the secret scrubber, shared by the answer, the PR text, the session and the memory file |
 | `scripts/post-comment.sh` | upsert one comment, found by a hidden marker |
 | `scripts/open-pr.sh` | when the agent wrote `.agent-pr.md` and the tree changed: branch, commit, push, open the draft PR |
-| `scripts/cost.sh` | the run's dollars at most: `fx ask`'s tokens at list price, for the main run and a memory compaction |
+| `scripts/cost.sh` | about what the run cost: `fx ask`'s tokens at the serving provider's list price, cache reads at the cache rate, for the main run and a memory compaction |
 | `scripts/memory.sh` | `fetch` the memory file from its branch before the run, `save` it after, compacting when over the cap |
 
 If a change wants another file, ask whether it belongs in the prompt instead.
@@ -307,7 +307,7 @@ churn, an edit-in-place, delete-stale, earn-its-place contract produced
 durable entries. `open-pr.sh` filters `.agent-memory/` out of the PR
 pathspec. The survey behind the choice of store is `docs/agent-memory.md`.
 
-**The footer's dollars are a ceiling, from `fx ask`'s tokens at list
+**The footer's dollars are an estimate, from `fx ask`'s tokens at list
 price, and a ballpark is all that is wanted.** Until 0.0.13 fx kept a
 per-generation ledger, `~/.fx/usage.jsonl`, and `cost.sh` priced each
 generation exactly: the ledger's `total_cost`, or for a BYOK one (KO's
@@ -318,15 +318,26 @@ generation ids nowhere: not in `fx ask --json`, the session, a recording or
 answers 403 "requires a paid plan" on KO's team (fx reports `"status":
 "failed","reason":"refused"` with every total 0) and covers a whole period,
 not a run. So `cost.sh` takes each `fx ask --json` result's `usage` tokens
-and `model` and multiplies by the catalog's list price. Those tokens have no
-cache-read share, so all input is priced in full: on the default
-`deepseek-v4.1-flash`, 91% cache reads at 1/43 of the input price in the old
-ledger, the figure is about 9× the real one. They are also the main agent's
-only, without the auto reviewer, subagents or Exa, so on a model with little
-caching it can come in under. The footer marks it `≤`; `max_cost` compares
-against it, which makes it a stricter tripwire than it was. The provider comes
-from `resolved_provider`, which the footer shows because the DeepSeek
-providers differ; `provider_order` picks among them. A memory compaction is a
+and `model` and multiplies by the price of the provider that served it, from
+the gateway's `/v1/models/<id>/endpoints` with its peak-hour multiplier
+(DeepSeek's hosts run from $0.035 to $0.30 per million input, and four of
+the 22 double at peak), falling back to the catalog's headline price. Cache reads and
+writes go at their own rates (fx reports them since 0.0.16; on
+0.0.14 and 0.0.15 all input was priced in full, about 9× the real figure on
+the default model, and the footer said `≤`). Cached counts above
+`input_tokens` print no cost rather than a wrong one, since that would mean fx
+changed what the total includes. The tokens are the main agent's only,
+without the auto reviewer, subagents or Exa, so the figure runs low by that
+much. The footer marks it `~`, and `max_cost` compares against it. The
+provider comes from `resolved_provider`, which the footer shows because the DeepSeek
+providers differ; `provider_order` picks among them, and defaults to `wafer,
+baseten`. Measured 2026-11-02, two questions about this repo three times each
+per host, every answer correct: wafer 9 s and 0.28¢ a run on average, baseten
+(the gateway's own pick) 14 s and 0.68¢, togetherai 8 s and 0.90¢, deepseek
+15 s and 0.31¢ but without the gateway's no-retention and no-training flags,
+which matters for private repos. Non-strict, so an outage falls back to the
+pool, and a model neither host serves ignores it (measured: claude-haiku-5.5
+with this order went to anthropic). Recheck when the default model changes. A memory compaction is a
 second request, and `memory.sh` passes its result to `cost.sh` with the main
 run's so the footer covers both. A key's budget caps a BYOK model only when
 the key was made with `--include-byok`, which the README's setup line passes;
@@ -449,9 +460,10 @@ Every consumer is a repo KO can reach, which is what makes this safe.
 token for a named bot, and for CI to run on what it pushes. No hosted service,
 ever — that is the line between this and the opencode model.
 
-## fx facts checked against 0.0.14
+## fx facts, last checked against 0.0.16
 
-Verified against the binary, so nobody re-checks them from memory. Recheck
+Verified against the binary, so nobody re-checks them from memory. A fact that
+names an older version was not rechecked on the newer one. Recheck
 when fx's version in a footer moves: install the new release into a scratch
 directory (`FX_INSTALL_DIR=<dir> bash setup.sh <tag>`, with `<dir>` on `PATH`
 or the installer edits your shell rc), then run one cheap `fx ask` and render
@@ -466,8 +478,9 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
 - **Nothing the agent starts keeps `fx ask` alive** (0.0.12, where detached
   processes outlive a shell call). Asked to `nohup … &`, the model refused;
   asked to leave `sleep 200` running as a shell session, `fx ask` answered
-  in 5s and the process was gone. 0.0.13 makes it a rule: terminals the shell
-  tool started stop when fx exits.
+  in 5s and the process was gone. 0.0.13 makes it a rule: terminals the
+  shell tool started stop when fx exits. 0.0.16 extends it to nested shells
+  and job-control groups.
 - **Compaction starts at 80% of the window** (`auto_compact_percent`, 10–80,
   a personal setting `.fx.json` cannot set). Left at the default: a run is
   one prompt, and fx compacts and retries once on a context overflow.
@@ -531,7 +544,9 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
 **Sessions and spend**
 
 - **Session JSON is `execution.schema_version` 3**, per turn, on 0.0.14
-  and 0.0.15 (whose "leaner session store" left the export unchanged).
+  through 0.0.16 (0.0.15's "leaner session store" left the export
+  unchanged; 0.0.16 adds `created_at_ms` and `output_handle` to tool
+  results, which nothing reads).
   `--sessions-v2` is still opt-in (0.0.14 adds `fx --sessions-v2 sessions
   convert`); the action stays on the default
   until v2 is fx's default, so `session-html.py` migrates once.
@@ -542,8 +557,12 @@ its session. Rewrite a fact when it changes; do not add a dated one on top.
   output_bytes,stored_output_bytes,provider_native,permission_feedback}`.
   When the version moves, that file is what breaks.
 - **fx keeps no spend ledger and no generation ids** (0.0.14). `fx ask
-  --json` has `usage.{input_tokens,output_tokens}` for the main agent,
-  `model` and `resolved_provider`, and that is all. `fx usage --json` is the
+  --json` has `usage.{input_tokens,output_tokens}` for the main agent, plus
+  `cache_read_tokens` and `cache_write_tokens` when the provider reports them
+  (0.0.16). The total includes them: measured, 10,240 of 20,900 cached on
+  deepseek-v4.1-flash via baseten, and 14,939 read plus 15,708 written of
+  30,653 on claude-haiku-5.5 via anthropic, `model` and
+  `resolved_provider`, and that is all. `fx usage --json` is the
   gateway's period report, refused without a paid plan. See the cost decision
   above.
 
@@ -581,7 +600,8 @@ of both.
 `docs/guide.md` is the long-form user doc, the README's other 20%; keep it
 true when a behaviour changes. `docs/agent-memory.md` is the survey behind the
 memory feature, hosted stores against GitHub-native, with prices dated.
-`docs/prior-art.md` is the distilled survey of a dozen coding-agent actions:
+`docs/skills.md` is the shipped skills, the candidates and the bar a new one
+has to clear; read it before adding a skill. `docs/prior-art.md` is the distilled survey of a dozen coding-agent actions:
 trigger, actor checks, auth, output, safety, and the recipes they document,
 plus where this action deliberately differs. `refs/` holds clones of the three
 that matter most, gitignored; `refs/README.md` says how to refresh them. Read

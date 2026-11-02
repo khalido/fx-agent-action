@@ -15,14 +15,22 @@ break and how a release is cut.
   answer it. On two questions about this repo, three runs each, steps fell
   from 6.3 to 4 on average and cost by about a fifth, with answers just as
   long and just as right. A duplicate no-preamble line went.
-- The footer's cost is now a ceiling, marked `≤`, and `max_cost` compares
+- The footer's cost is now an estimate, marked `~`, and `max_cost` compares
   against it. fx 0.0.14 stopped keeping the per-generation ledger the exact
-  figure came from, so the action prices `fx ask`'s tokens at list price with
-  no cache discount: about 9× the real cost on the default model. Without
-  this, the footer showed no cost and 0 tokens on 0.0.14. Checked against
-  fx 0.0.14.
-- `max_cost` defaults to 5 instead of 1, since it now compares against that
-  ceiling: a 1M-token run on `anthropic/claude-sonnet-5` prices at about $3.
+  figure came from, so the action prices `fx ask`'s tokens at the list price
+  of the provider that served them, peak hours included, with cache reads at
+  the cache rate from fx 0.0.16, which reports them. The
+  auto reviewer, subagents and web search are not in it, so it runs a little
+  low. Without this, the footer showed no cost and 0 tokens on 0.0.14.
+  Checked against fx 0.0.16.
+- `provider_order` defaults to `wafer, baseten` instead of the gateway's
+  choice. On the default model wafer answered as well as baseten, the
+  gateway's usual pick, in two-thirds of the time for under half the price,
+  and both keep no data. Set `provider_order: ''` for the old routing.
+- `max_cost` defaults to 2 instead of 1. A 1M-token run on
+  `anthropic/claude-sonnet-5`, 80% of it cache reads, comes to well under $1
+  with nothing wrong, so 2 trips only a run that has gone wrong; a run on the
+  default model costs about a cent.
 - The default model is `deepseek/deepseek-v4.1-flash-1017`, DeepSeek's 17 October snapshot of
   v4.1-flash: half the list price, and on a test question here it was right,
   faster and caught a case the old one missed.
